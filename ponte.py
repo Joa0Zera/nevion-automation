@@ -484,9 +484,30 @@ def git_init_e_push(pasta_projeto, nome_repo):
     )
     
     if resultado.returncode != 0:
-        print(f"❌ Erro ao criar repo: {resultado.stderr}")
-        return False, f"Erro GitHub: {resultado.stderr}"
-    
+        print(f"❌ Erro ao criar repo via gh: {resultado.stderr}")
+        print("⚠️  Tentando fallback: configurar remote SSH manualmente...")
+
+        try:
+            # Remove remote antigo se existir (gh pode ter deixado parcialmente configurado)
+            executar_comando('git remote remove origin', pasta_projeto, descricao="Removendo remote antigo (se existir)")
+
+            # Adiciona remote novo com SSH
+            remote_url = "git@github.com:Joa0Zera/nevion-automation.git"
+            remote_add = executar_comando(f'git remote add origin {remote_url}', pasta_projeto, descricao="Configurando remote SSH")
+            if remote_add is None or remote_add.returncode != 0:
+                erro_remote = remote_add.stderr if remote_add else "comando não executou"
+                return False, f"Erro GitHub: {resultado.stderr} | Fallback SSH também falhou ao configurar remote: {erro_remote}"
+
+            push = executar_comando('git push -u origin HEAD', pasta_projeto, descricao="Push via SSH (fallback)")
+            if push is None or push.returncode != 0:
+                erro_push = push.stderr if push else "comando não executou"
+                return False, f"Erro GitHub: {resultado.stderr} | Fallback SSH também falhou no push: {erro_push}"
+
+            print("   ✅ Push feito com sucesso via fallback SSH!")
+            return True, "Repositório enviado via fallback SSH (gh CLI falhou)"
+        except Exception as e:
+            return False, f"Erro GitHub: {resultado.stderr} | Fallback SSH também falhou: {str(e)}"
+
     print(resultado.stdout)
     return True, "Repositório criado com sucesso"
 
