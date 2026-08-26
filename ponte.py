@@ -275,7 +275,35 @@ INFORMAÇÕES DO GOOGLE MEU NEGÓCIO (avaliações, horário, descrição etc �
 {google_meu_negocio}
 """
 
+    # Referências de páginas prontas para Claude Code usar como inspiração
+    referencias_prompt = """
+📚 PÁGINAS DE REFERÊNCIA (use como inspiração de design):
+
+1. REFERÊNCIA 1: Mykael Silva | Enfermeiro Esteta
+   Link: https://lp-mykael-silva.vercel.app/
+   Design: Layout limpo, cards destacados, CTA visuais
+
+2. REFERÊNCIA 2: Instituto Liza Carbon | Estética Premium
+   Link: https://instituto-liza-carbon.vercel.app/
+   Design: Cores boldas, galeria de fotos, premium feel
+
+3. REFERÊNCIA 3: Fisiobeauty | Dra. Dayane Hoed
+   Link: https://fisiobeauty-landing-page.vercel.app/
+   Design: Animações fluidas, tipografia moderna, efeitos hover
+
+⚡ INSTRUÇÕES: Analise essas páginas e aplique os melhores padrões visuais na nova página!
+Use os mesmos tipos de:
+- Cards e layouts
+- Efeitos de hover
+- Animações
+- Tipografia
+- Paleta de cores
+- Estrutura responsiva
+"""
+
     prompt = f"""
+{referencias_prompt}
+
 Você é o desenvolvedor responsável pela criação automática de Landing Pages da Nevion.
 
 Recebeu o briefing abaixo de uma empresa.
