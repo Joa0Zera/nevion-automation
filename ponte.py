@@ -7,6 +7,7 @@ import traceback
 from datetime import datetime
 import sys
 import shutil
+import requests
 
 # Importar o módulo de raspar Instagram
 try:
@@ -93,6 +94,65 @@ def converter_cor_descricao(cor_descricao: str) -> dict:
             'secundaria': '#2d5a7a',
             'destaque': '#ffa500'
         }
+
+
+def buscar_lead_no_leadengine(telefone: str) -> dict:
+    """
+    Busca um lead no LeadEngine pelo telefone.
+    Retorna os dados completos do Google Meu Negócio.
+    """
+    if not telefone:
+        return {}
+
+    try:
+        # Normaliza telefone
+        telefone_normalizado = ''.join(filter(str.isdigit, telefone))
+
+        # Adiciona código país se não tiver
+        if not telefone_normalizado.startswith('55'):
+            telefone_normalizado = '55' + telefone_normalizado
+
+        # Formata com +
+        telefone_formatado = '+' + telefone_normalizado
+
+        print(f"\n🔍 Buscando lead no LeadEngine: {telefone_formatado}")
+
+        # Chama a rota do LeadEngine
+        response = requests.get(
+            'https://leadengine-public.onrender.com/api/lead-by-phone',
+            params={'phone': telefone_formatado},
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            lead = response.json()
+            print(f"   ✅ Lead encontrado: {lead.get('name', 'Sem nome')}")
+            return lead
+        else:
+            print(f"   ⚠️ Lead não encontrado (status {response.status_code})")
+            return {}
+
+    except Exception as e:
+        print(f"   ❌ Erro ao buscar lead: {str(e)}")
+        return {}
+
+
+def extrair_telefone(briefing, item_lead: dict) -> str:
+    """
+    Extrai o telefone do lead, aceitando tanto o campo `contato` (string) do
+    JSON flat do LeadEngine quanto `briefing_landing_page.contato.telefone/whatsapp`
+    do formato aninhado do n8n.
+    """
+    contato_flat = item_lead.get('contato')
+    if isinstance(contato_flat, str) and contato_flat:
+        return contato_flat
+
+    if isinstance(briefing, dict):
+        contato_aninhado = briefing.get('briefing', {}).get('briefing_landing_page', {}).get('contato', {})
+        if isinstance(contato_aninhado, dict):
+            return contato_aninhado.get('telefone') or contato_aninhado.get('whatsapp') or contato_aninhado.get('phone') or ''
+
+    return ''
 
 
 def obter_item_lead(briefing):
@@ -451,6 +511,27 @@ class Handler(BaseHTTPRequestHandler):
             print(f"   🏢 Google Meu Negócio: {google_meu_negocio[:50]}..." if google_meu_negocio else "   🏢 Sem informações do Google")
             print(f"   🎨 Cores: {cor_descricao}")
             print(f"   📊 Cores convertidas: Primária={cores['primaria']}, Secundária={cores['secundaria']}, Destaque={cores['destaque']}")
+
+            # Tenta buscar dados completos do LeadEngine
+            print(f"\n🔍 BUSCANDO LEAD NO LEADENGINE...")
+            telefone = extrair_telefone(briefing, item_lead)
+            lead_data = buscar_lead_no_leadengine(telefone)
+
+            # Se encontrou no LeadEngine, adiciona os dados (sem apagar o que já
+            # tiver vindo preenchido manualmente no campo do modal)
+            if lead_data:
+                google_meu_negocio = f"""
+    Nome: {lead_data.get('name', '')}
+    Website: {lead_data.get('website', '')}
+    Endereço: {lead_data.get('address', '')}
+    Categoria: {lead_data.get('category', '')}
+    Descrição: {lead_data.get('description', '')}
+    Rating: {lead_data.get('rating', 0)} ⭐ ({lead_data.get('userRatingsTotal', 0)} avaliações)
+    Categorias: {', '.join(lead_data.get('secondaryCategories', []))}
+    """
+                print(f"   ✅ Dados do Google Meu Negócio integrados!")
+            else:
+                print(f"   ⚠️ Usando apenas os dados do briefing (sem Google Meu Negócio)")
 
             nome_pasta = limpar_nome(nome_empresa)
             
