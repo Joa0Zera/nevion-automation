@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Nevion Automation — dados sensíveis e artefatos gerados localmente
+chrome_perfil_whatsapp/
+contatos.txt
+disparados.json
+extracao_leads.log
+*.csv
+projetos/
