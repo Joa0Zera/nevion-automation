@@ -323,9 +323,60 @@ Use os mesmos tipos de:
 - Estrutura responsiva
 """
 
+    def _contar_imagens(valor):
+        """Conta URLs/imagens em qualquer formato que o campo `imagens` do briefing possa assumir."""
+        if not valor:
+            return 0
+        if isinstance(valor, str):
+            return 1
+        if isinstance(valor, list):
+            return sum(_contar_imagens(item) for item in valor)
+        if isinstance(valor, dict):
+            return sum(_contar_imagens(item) for item in valor.values())
+        return 0
+
+    imagens_briefing = {}
+    if isinstance(briefing, dict):
+        imagens_briefing = briefing.get("briefing", {}).get("briefing_landing_page", {}).get("imagens", {})
+    total_imagens = _contar_imagens(imagens_briefing)
+
+    validacao_imagens = f"""
+🚨 IMAGENS OBRIGATÓRIAS - 100% NÃO NEGOCIÁVEL:
+
+Quantidade de imagens fornecidas no BRIEFING: {total_imagens}
+
+SE TEM IMAGENS FORNECIDAS ({total_imagens} acima > 0):
+- VOCÊ DEVE usar TODAS elas na página
+- NÃO substitua por genéricas
+- NÃO use SVGs ilustrativos fake
+- NÃO crie imagens com IA
+- NÃO use placeholders decorativos no lugar delas
+- Coloque EM: Hero section, Galeria, Sobre, Antes & Depois (conforme fizer sentido)
+
+SE NÃO TEM IMAGENS ({total_imagens} acima == 0):
+- Use placeholder com texto: <div style="background: linear-gradient(...); display: flex; align-items: center;"><p>Espaço reservado para foto real</p></div>
+- Isso é OK e ESPERADO quando não há imagens — não é uma falha
+- NÃO invente imagens
+- NÃO gere com IA
+- NÃO use stock photos genéricas
+
+✅ CHECKLIST DE IMAGENS (antes de terminar):
+1. Procure por TODAS as tags <img> no index.html
+2. Se há {total_imagens} imagens no briefing e alguma NÃO foi usada = corrija antes de terminar
+3. Se tem SVG decorativo no lugar de foto real = FALHOU
+4. Se tem foto genérica/stock no lugar de uma fornecida = FALHOU
+5. Se {total_imagens} == 0 e usou o placeholder com texto acima = OK, está correto
+6. Se usou cada imagem fornecida = OK
+
+Se {total_imagens} > 0, confira que nenhuma foi trocada por algo genérico:
+grep -i "stock\\|illustration\\|generic\\|fake" index.html
+Se retornar algo = corrija antes de terminar
+"""
+
     prompt = f"""
 {referencias_prompt}
 {cores_mandatorio}
+{validacao_imagens}
 
 ===========================================
 INSTRUÇÕES CRÍTICAS - CUMPRIR 100%:
@@ -336,15 +387,7 @@ VOCÊ DEVE SEGUIR O BRIEFING EXATAMENTE COMO ESTÁ. NÃO INVENTE NADA.
 BRIEFING COMPLETO (fonte única da verdade — o que não estiver aqui não existe):
 {briefing_json}
 
-1. IMAGENS (OBRIGATÓRIO):
-   - Verifique o campo "imagens" dentro do BRIEFING acima (ex.: briefing.briefing_landing_page.imagens.hero e .antes_depois)
-   - Se houver imagens fornecidas: USE APENAS ESSAS
-   - NÃO crie/invente imagens falsas
-   - NÃO use ilustrações SVG genéricas
-   - Se NÃO houver imagens no briefing, use placeholder com texto "Espaço para foto real"
-   - Nunca gere imagens com IA ou crie imagens inexistentes
-
-2. DESIGN DAS REFERÊNCIAS (OBRIGATÓRIO):
+1. DESIGN DAS REFERÊNCIAS (OBRIGATÓRIO):
    - Estude estas 3 referências de SUCESSO:
      * Mykael Silva (lp-mykael-silva.vercel.app) - Layout limpo, cards destacados, CTA visuais
      * Instituto Liza Carbon (instituto-liza-carbon.vercel.app) - Cores boldas, galeria profissional, premium
@@ -353,7 +396,7 @@ BRIEFING COMPLETO (fonte única da verdade — o que não estiver aqui não exis
    - Use a mesma estrutura, mesmos tipos de cards, mesmos efeitos
    - Não crie algo "novo" - REPLIQUE o que funciona!
 
-3. RESPONDA AO BRIEFING 100%:
+2. RESPONDA AO BRIEFING 100%:
    - Empresa: {nome_empresa}
    - Google Meu Negócio: {google_meu_negocio if google_meu_negocio else "não informado"}
    - Serviço, descrição, telefone e demais campos: leia diretamente do BRIEFING acima — os nomes dos campos variam conforme a origem do lead, então NÃO assuma um formato fixo, use o que realmente está no JSON
@@ -373,20 +416,6 @@ Seções EXIGIDAS (nesta ordem):
 7. CTA final (agendar/contato)
 8. Contato (WhatsApp, telefone, Instagram, localização)
 9. Footer
-
-===========================================
-IMAGENS (CRÍTICO):
-===========================================
-
-SE TEM IMAGENS NO BRIEFING:
-- Coloque EXATAMENTE as imagens fornecidas
-- Não substitua por genéricas
-- Use em Hero, Galeria, Sobre
-
-SE NÃO TEM IMAGENS:
-- Use placeholder: <div style="background: linear-gradient(...); height: 400px; display: flex; align-items: center;"><p>Espaço para foto real</p></div>
-- NÃO invente imagens com IA
-- NÃO crie SVGs decorativas fake
 
 ===========================================
 STACK:
