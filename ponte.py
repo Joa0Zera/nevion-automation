@@ -394,6 +394,80 @@ Não crie algo "novo" - REPLIQUE o que funciona. Você NÃO tem liberdade criati
             return sum(_contar_imagens(item) for item in valor.values())
         return 0
 
+    efeitos_obrigatorios = """
+🎬 EFEITOS E ANIMAÇÕES - OBRIGATÓRIO:
+
+Você DEVE copiar EXATAMENTE os efeitos das 3 referências:
+1. lp-mykael-silva.vercel.app → Scroll reveal, fade-in, smooth transitions
+2. instituto-liza-carbon.vercel.app → Parallax, gradient animations, cards com depth
+3. fisiobeauty-landing-page.vercel.app → Carousel automático, hover effects, micro-animations
+
+IMPLEMENTAR OBRIGATORIAMENTE:
+
+✅ DEPOIMENTOS: CAROUSEL AUTOMÁTICO (esteira)
+   - Passa automaticamente a cada 5 segundos
+   - Transição suave (fade ou slide)
+   - Botões next/prev funcionais
+   - Indicadores de página (dots pulsantes)
+   - Hover: para a animação
+
+✅ SCROLL EFFECTS:
+   - Fade-in nas seções ao rolar
+   - Slide-in dos cards (esquerda → direita, direita → esquerda)
+   - Parallax no hero (imagem se move lento)
+   - Scale-up em hover nos cards
+   - Progress bar no header mostrando scroll
+
+✅ GRADIENTES ANIMADOS:
+   - Background com gradiente que muda de cor sutilmente
+   - Gradientes nos botões (com hover)
+   - Gradientes nos títulos
+
+✅ EFEITOS NOS CARDS:
+   - Shadow dinâmica (aumenta no hover)
+   - Rotate leve (2-3 graus) no hover
+   - Scale (1.02x) no hover
+   - Border que muda cor no hover
+   - Glow effect nos cards premium
+
+✅ MICRO-ANIMAÇÕES:
+   - Botões com ripple effect
+   - Links com underline animado
+   - Menu hambúrguer com animação de abertura
+   - Números contadores que "crescem" (5.094 avaliações)
+   - Check marks que aparecem nos diferenciais
+
+✅ HEADER DINÂMICO:
+   - Muda de tamanho ao rolar
+   - Background fica mais escuro/opaco ao rolar
+   - Sticky (fica fixo) com transição suave
+
+✅ TIPOGRAFIA COM EFEITOS:
+   - Títulos com letter-spacing animado
+   - Gradient text (cores + gradiente)
+   - Shadow dinâmica nos títulos
+
+✅ CTA BUTTONS:
+   - Hover: muda cor + sombra
+   - Click: animação de click
+   - Pulse effect (pulsação contínua)
+
+USAR APENAS:
+- CSS puro (@keyframes animations, transitions)
+- JavaScript vanilla (requestAnimationFrame, IntersectionObserver)
+- SEM bibliotecas externas (sem jQuery, sem GSAP)
+
+CHECKLIST FINAL:
+1. Depoimentos têm carousel automático? ✅
+2. Scroll effects visíveis em cada seção? ✅
+3. Hover effects agressivos em cards? ✅
+4. Gradientes animados? ✅
+5. Página se move/anima ao rolar? ✅
+6. Parece PREMIUM e VIVA? ✅
+
+Se faltar QUALQUER efeito = REFAÇA!
+"""
+
     imagens_briefing = {}
     if isinstance(briefing, dict):
         imagens_briefing = briefing.get("briefing", {}).get("briefing_landing_page", {}).get("imagens", {})
@@ -435,6 +509,7 @@ Se retornar algo = corrija antes de terminar
     prompt = f"""
 {referencias_prompt}
 {cores_mandatorio}
+{efeitos_obrigatorios}
 {validacao_imagens}
 
 ===========================================
