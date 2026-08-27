@@ -8,8 +8,15 @@ Projeto **HTML5 + CSS3 + JavaScript puro (vanilla)** — sem frameworks e sem et
 
 - `index.html` — estrutura e conteúdo da página
 - `assets/css/style.css` — identidade visual, layout responsivo e animações
-- `assets/js/main.js` — menu mobile, header dinâmico no scroll e animações de scroll reveal
+- `assets/js/main.js` — menu mobile, header dinâmico, barra de progresso de scroll, scroll reveal, carousel de depoimentos, contadores animados e efeito ripple nos botões
+- `assets/imagens/` — fotos reais fornecidas no briefing
 - Fontes: Google Fonts (`Cormorant Garamond` para títulos, `Poppins` para textos)
+
+## Paleta de cores
+
+- Primária: `#4a9eff`
+- Secundária: `#2d5a7a`
+- Destaque: `#ffa500`
 
 ## Estrutura do projeto
 
@@ -21,20 +28,30 @@ empresa-teste/
 └── assets/
     ├── css/
     │   └── style.css
-    └── js/
-        └── main.js
+    ├── js/
+    │   └── main.js
+    └── imagens/
+        ├── Doutora.png
+        ├── Espaço 1.png
+        ├── Espaço 2.png
+        ├── Espaço 3.png
+        ├── Resultado 1.png
+        ├── Resultado 2.png
+        └── Resultado 3.png
 ```
 
 ## Seções da página
 
 1. **Header fixo** com navegação e CTA de agendamento (menu responsivo com hambúrguer no mobile)
-2. **Hero** — chamada principal, CTAs (WhatsApp e telefone) e destaque de avaliações no Google
-3. **Sobre** — descrição real da clínica (extraída do Google Meu Negócio)
+2. **Hero** — chamada principal, foto real da Dra. Luiza, CTAs (WhatsApp e telefone) e contador animado de avaliações no Google
+3. **Sobre** — descrição real da clínica (extraída do Google Meu Negócio), com foto real do espaço
 4. **Serviços** — Preenchimento Labial, Botox, Full Face e Perfiloplastia
-5. **Depoimentos** — 3 avaliações reais de pacientes (Google)
-6. **CTA final** — chamada para agendamento
-7. **Contato** — endereço, telefone, horário de funcionamento e mapa incorporado (Google Maps)
-8. **Footer** e botão flutuante de WhatsApp
+5. **Diferenciais** — 5 pontos extraídos do perfil do Google Meu Negócio
+6. **Galeria** — fotos reais de resultados e do espaço da clínica
+7. **Depoimentos** — carousel automático (a cada 5s) com 3 avaliações reais de pacientes (Google), navegação por setas e dots
+8. **CTA final** — chamada para agendamento
+9. **Contato** — endereço, telefone, horário de funcionamento e mapa incorporado (Google Maps)
+10. **Footer** e botão flutuante de WhatsApp
 
 ## Como executar localmente
 
@@ -69,4 +86,4 @@ O arquivo `vercel.json` já está configurado para deploy como site estático (s
 ## Observações
 
 - Todas as informações de contato, endereço, horário de funcionamento e depoimentos foram extraídas exclusivamente do briefing e do perfil do Google Meu Negócio fornecidos — nenhum dado foi inventado.
-- Não há imagens reais fornecidas no briefing (`imagens: []`); por isso, o hero e a seção "Sobre" usam elementos visuais neutros (formas, gradientes e iniciais) no lugar de fotos, deixando a estrutura pronta para receber fotos reais posteriormente.
+- As 7 imagens fornecidas no briefing estão salvas em `assets/imagens/` e são usadas na página (Hero, Sobre, Galeria de Resultados e Galeria do Espaço) — nenhuma imagem genérica ou gerada por IA foi utilizada.

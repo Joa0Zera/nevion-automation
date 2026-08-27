@@ -14,6 +14,8 @@
 </head>
 <body>
 
+  <div class="progress-bar" id="progressBar"></div>
+
   <!-- ===== HEADER ===== -->
   <header class="header" id="header">
     <div class="container header__inner">
@@ -25,6 +27,7 @@
       <nav class="nav" id="nav">
         <a href="#sobre" class="nav__link">Sobre</a>
         <a href="#servicos" class="nav__link">Serviços</a>
+        <a href="#galeria" class="nav__link">Galeria</a>
         <a href="#depoimentos" class="nav__link">Depoimentos</a>
         <a href="#contato" class="nav__link">Contato</a>
         <a href="https://wa.me/5571999407599" target="_blank" rel="noopener" class="btn btn--primary btn--sm nav__cta">Agendar Avaliação</a>
@@ -63,7 +66,7 @@
 
         <div class="hero__trust">
           <div class="trust-item">
-            <strong>5.094</strong>
+            <strong><span data-counter="5094" data-suffix="">0</span></strong>
             <span>avaliações no Google</span>
           </div>
           <div class="trust-divider"></div>
@@ -75,15 +78,10 @@
       </div>
 
       <div class="hero__visual reveal">
-        <div class="hero-card">
-          <div class="hero-card__badge">Especialista</div>
-          <div class="hero-card__ring"></div>
-          <ul class="hero-card__list">
-            <li>Preenchimento Labial</li>
-            <li>Botox</li>
-            <li>Full Face</li>
-            <li>Perfiloplastia</li>
-          </ul>
+        <div class="hero-photo">
+          <span class="hero-photo__badge">Especialista</span>
+          <img src="./assets/imagens/Doutora.png" alt="Dra. Luiza Alves, especialista em Harmonização Facial" />
+          <div class="hero-photo__caption">Dra. Luiza Alves</div>
         </div>
       </div>
     </div>
@@ -96,15 +94,15 @@
   <!-- ===== SOBRE ===== -->
   <section class="sobre" id="sobre">
     <div class="container sobre__inner">
-      <div class="sobre__visual reveal">
+      <div class="sobre__visual reveal reveal--left">
         <div class="sobre-frame">
           <div class="sobre-frame__inner">
-            <span class="sobre-frame__initials">LA</span>
+            <img src="./assets/imagens/EspaÃ§o 1.png" alt="Espaço da clínica da Dra. Luiza Alves em Salvador" />
           </div>
         </div>
       </div>
 
-      <div class="sobre__content reveal">
+      <div class="sobre__content reveal reveal--right">
         <span class="eyebrow">Sobre a clínica</span>
         <h2 class="section-title">Referência em Harmonização e Estética Facial em Salvador</h2>
         <p class="sobre__text">
@@ -123,7 +121,7 @@
 
         <div class="sobre__stats">
           <div class="stat">
-            <strong>5.094</strong>
+            <strong><span data-counter="5094">0</span></strong>
             <span>Avaliações no Google</span>
           </div>
           <div class="stat">
@@ -182,6 +180,106 @@
     </div>
   </section>
 
+  <!-- ===== DIFERENCIAIS ===== -->
+  <section class="diferenciais" id="diferenciais">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="eyebrow">Diferenciais</span>
+        <h2 class="section-title">Por que escolher a Dra. Luiza Alves</h2>
+        <p class="section-subtitle">
+          Os pontos que fazem da clínica referência em Harmonização Facial em Salvador.
+        </p>
+      </div>
+
+      <div class="diferenciais__grid">
+        <div class="dif-card">
+          <span class="dif-card__check">&#10003;</span>
+          <div>
+            <h3>Especialista em Harmonização Facial</h3>
+            <p>Procedimentos conduzidos pela Dra. Luiza Alves com foco em técnica e resultado natural.</p>
+          </div>
+        </div>
+        <div class="dif-card">
+          <span class="dif-card__check">&#10003;</span>
+          <div>
+            <h3>Espaço exclusivo e acolhedor</h3>
+            <p>Ambiente único, preparado para receber com conforto, exclusividade e segurança.</p>
+          </div>
+        </div>
+        <div class="dif-card">
+          <span class="dif-card__check">&#10003;</span>
+          <div>
+            <h3>Naturalidade e segurança</h3>
+            <p>Excelência e naturalidade priorizadas em todos os procedimentos realizados.</p>
+          </div>
+        </div>
+        <div class="dif-card">
+          <span class="dif-card__check">&#10003;</span>
+          <div>
+            <h3>Referência em Salvador, BA</h3>
+            <p>Consultório localizado em Costa Azul, referência em Estética Facial na cidade.</p>
+          </div>
+        </div>
+        <div class="dif-card">
+          <span class="dif-card__check">&#10003;</span>
+          <div>
+            <h3>5.094 avaliações no Google</h3>
+            <p>Centro de saúde e beleza bem avaliado por pacientes reais.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== GALERIA ===== -->
+  <section class="galeria" id="galeria">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="eyebrow">Galeria</span>
+        <h2 class="section-title">Resultados e Espaço</h2>
+        <p class="section-subtitle">
+          Conheça resultados reais de procedimentos e o espaço exclusivo da clínica.
+        </p>
+      </div>
+
+      <div class="galeria__group">
+        <h3 class="galeria__label reveal">Resultados</h3>
+        <div class="galeria__grid">
+          <div class="galeria-item reveal">
+            <img src="./assets/imagens/Resultado 1.png" alt="Resultado de procedimento de harmonização facial 1" />
+            <span class="galeria-item__tag">Resultado</span>
+          </div>
+          <div class="galeria-item reveal">
+            <img src="./assets/imagens/Resultado 2.png" alt="Resultado de procedimento de harmonização facial 2" />
+            <span class="galeria-item__tag">Resultado</span>
+          </div>
+          <div class="galeria-item reveal">
+            <img src="./assets/imagens/Resultado 3.png" alt="Resultado de procedimento de harmonização facial 3" />
+            <span class="galeria-item__tag">Resultado</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="galeria__group">
+        <h3 class="galeria__label reveal">Nosso Espaço</h3>
+        <div class="galeria__grid">
+          <div class="galeria-item reveal">
+            <img src="./assets/imagens/EspaÃ§o 2.png" alt="Espaço da clínica da Dra. Luiza Alves 2" />
+            <span class="galeria-item__tag">Espaço</span>
+          </div>
+          <div class="galeria-item reveal">
+            <img src="./assets/imagens/EspaÃ§o 3.png" alt="Espaço da clínica da Dra. Luiza Alves 3" />
+            <span class="galeria-item__tag">Espaço</span>
+          </div>
+          <div class="galeria-item reveal">
+            <img src="./assets/imagens/EspaÃ§o 1.png" alt="Espaço da clínica da Dra. Luiza Alves 1" />
+            <span class="galeria-item__tag">Espaço</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ===== DEPOIMENTOS ===== -->
   <section class="depoimentos" id="depoimentos">
     <div class="container">
@@ -191,23 +289,35 @@
         <p class="section-subtitle">Avaliações reais de pacientes, extraídas do Google Meu Negócio.</p>
       </div>
 
-      <div class="depoimentos__grid">
-        <div class="review-card reveal">
-          <div class="review-card__stars">★★★★★</div>
-          <p class="review-card__text">"Tirou todas as minhas dúvidas e o resultado dos procedimentos foram impecáveis"</p>
-          <span class="review-card__author">Isma Beatriz</span>
+      <div class="carousel reveal">
+        <div class="carousel__track">
+          <div class="review-card is-active">
+            <div class="review-card__stars">★★★★★</div>
+            <p class="review-card__text">"Tirou todas as minhas dúvidas e o resultado dos procedimentos foram impecáveis"</p>
+            <span class="review-card__author">Isma Beatriz</span>
+          </div>
+
+          <div class="review-card">
+            <div class="review-card__stars">★★★★★</div>
+            <p class="review-card__text">"Clínica bem localizada, organizada e com ambiente acolhedor."</p>
+            <span class="review-card__author">Izabele Soares</span>
+          </div>
+
+          <div class="review-card">
+            <div class="review-card__stars">★★★★★</div>
+            <p class="review-card__text">"Tudo o que faz entrega profissionalismo e perfeição."</p>
+            <span class="review-card__author">Caroline Carneiro</span>
+          </div>
         </div>
 
-        <div class="review-card reveal">
-          <div class="review-card__stars">★★★★★</div>
-          <p class="review-card__text">"Clínica bem localizada, organizada e com ambiente acolhedor."</p>
-          <span class="review-card__author">Izabele Soares</span>
-        </div>
-
-        <div class="review-card reveal">
-          <div class="review-card__stars">★★★★★</div>
-          <p class="review-card__text">"Tudo o que faz entrega profissionalismo e perfeição."</p>
-          <span class="review-card__author">Caroline Carneiro</span>
+        <div class="carousel__controls">
+          <button class="carousel__btn carousel__btn--prev" aria-label="Depoimento anterior">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="carousel__dots"></div>
+          <button class="carousel__btn carousel__btn--next" aria-label="Próximo depoimento">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
         </div>
       </div>
 
