@@ -555,6 +555,18 @@ def git_init_e_push(pasta_projeto, nome_repo):
         return _fallback_ssh(f"Erro GitHub: {resultado.stderr}")
 
     print(resultado.stdout)
+
+    # Faz push explícito dos arquivos (rede de segurança caso o --push do gh não tenha pego)
+    push_explicito = executar_comando(
+        "git push -u origin master",
+        pasta_projeto,
+        descricao="Fazendo push dos arquivos"
+    )
+    if push_explicito is not None and push_explicito.returncode == 0:
+        print("   ✅ Push confirmado!")
+    else:
+        print("   ⚠️ Push explícito falhou, mas repositório já foi criado e enviado pelo --push do gh")
+
     return True, "Repositório criado com sucesso"
 
 
