@@ -23,6 +23,69 @@ PORTA = 8765
 PASTA_PROJETOS = r"C:\nevion-automation\projetos"
 
 
+# Mapeamento de cores em português para hex, usado tanto por converter_cor_descricao
+# (texto -> hex) quanto por nome_cor_mais_proxima (hex -> texto, o caminho inverso).
+CORES_MAP_PT = {
+    'roxo': '#6B35FF',
+    'roxo escuro': '#4a1a7f',
+    'roxo claro': '#9d4edd',
+    'branco': '#FFFFFF',
+    'azul': '#4a9eff',
+    'azul marinho': '#004E89',
+    'azul escuro': '#001f3f',
+    'azul claro': '#87CEEB',
+    'preto': '#000000',
+    'cinza': '#808080',
+    'cinza claro': '#D3D3D3',
+    'rosa': '#FF1493',
+    'rosa claro': '#FFB6C1',
+    'vermelho': '#FF0000',
+    'laranja': '#FF6B35',
+    'amarelo': '#FFD700',
+    'verde': '#00AA00',
+    'verde escuro': '#006400',
+    'turquesa': '#40E0D0',
+    'ciano': '#00FFFF',
+    'dourado': '#FFD700',
+    'prata': '#C0C0C0',
+    'ouro': '#FFD700',
+    'bege': '#F5F5DC',
+    'marrom': '#8B4513',
+}
+
+
+def _hex_para_rgb(hex_code):
+    hex_code = (hex_code or "").strip().lstrip("#")
+    if len(hex_code) != 6:
+        return None
+    try:
+        return tuple(int(hex_code[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return None
+
+
+def nome_cor_mais_proxima(hex_code):
+    """
+    Acha o nome em português (de CORES_MAP_PT) mais próximo de um HEX, por distância RGB.
+    Usado quando o lead manda cor_primaria/secundaria/destaque em hex direto (sem
+    cor_descricao em texto), pra validar_antes_de_fazer_push continuar reconhecendo
+    a família de cor certa em vez de banir tudo por falta de palavra pra casar.
+    """
+    alvo = _hex_para_rgb(hex_code)
+    if alvo is None:
+        return ""
+
+    melhor_nome, melhor_dist = "", None
+    for nome, hex_ref in CORES_MAP_PT.items():
+        rgb_ref = _hex_para_rgb(hex_ref)
+        if rgb_ref is None:
+            continue
+        dist = sum((a - b) ** 2 for a, b in zip(alvo, rgb_ref))
+        if melhor_dist is None or dist < melhor_dist:
+            melhor_nome, melhor_dist = nome, dist
+    return melhor_nome
+
+
 def converter_cor_descricao(cor_descricao: str) -> dict:
     """
     Converte descrição textual de cores em hex codes.
@@ -31,38 +94,9 @@ def converter_cor_descricao(cor_descricao: str) -> dict:
 
     cor_descricao = cor_descricao.lower()
 
-    # Mapeamento de cores em português para hex
-    cores_map = {
-        'roxo': '#6B35FF',
-        'roxo escuro': '#4a1a7f',
-        'roxo claro': '#9d4edd',
-        'branco': '#FFFFFF',
-        'azul': '#4a9eff',
-        'azul marinho': '#004E89',
-        'azul escuro': '#001f3f',
-        'azul claro': '#87CEEB',
-        'preto': '#000000',
-        'cinza': '#808080',
-        'cinza claro': '#D3D3D3',
-        'rosa': '#FF1493',
-        'rosa claro': '#FFB6C1',
-        'vermelho': '#FF0000',
-        'laranja': '#FF6B35',
-        'amarelo': '#FFD700',
-        'verde': '#00AA00',
-        'verde escuro': '#006400',
-        'turquesa': '#40E0D0',
-        'ciano': '#00FFFF',
-        'dourado': '#FFD700',
-        'prata': '#C0C0C0',
-        'ouro': '#FFD700',
-        'bege': '#F5F5DC',
-        'marrom': '#8B4513',
-    }
-
     # Tenta encontrar cores na descrição
     cores_encontradas = []
-    for cor_nome, cor_hex in cores_map.items():
+    for cor_nome, cor_hex in CORES_MAP_PT.items():
         if cor_nome in cor_descricao:
             cores_encontradas.append(cor_hex)
 
@@ -794,10 +828,23 @@ class Handler(BaseHTTPRequestHandler):
                 or "empresa-teste"
             )
 
-            # Google Meu Negócio + cores da marca (campos do modal "Copiar JSON" do LeadEngine)
+            # Google Meu Negócio + cores da marca (campos do modal "Copiar JSON" do LeadEngine,
+            # ou vindos prontos em hex do lote de criação de páginas do nevion-hub)
             google_meu_negocio = item_lead.get("google_meu_negocio", "")
-            cor_descricao = item_lead.get("cor_descricao", "azul profissional")
-            cores = converter_cor_descricao(cor_descricao)
+            cor_descricao = item_lead.get("cor_descricao", "")
+            cor_primaria_hex = item_lead.get("cor_primaria")
+
+            if cor_primaria_hex:
+                cores = {
+                    'primaria': cor_primaria_hex,
+                    'secundaria': item_lead.get("cor_secundaria") or '#2d5a7a',
+                    'destaque': item_lead.get("cor_destaque") or '#ffa500',
+                }
+                if not cor_descricao:
+                    cor_descricao = nome_cor_mais_proxima(cor_primaria_hex) or "azul profissional"
+            else:
+                cor_descricao = cor_descricao or "azul profissional"
+                cores = converter_cor_descricao(cor_descricao)
 
             print(f"\n✨ PROCESSANDO PÁGINA: {nome_empresa}")
             print(f"   🏢 Google Meu Negócio: {google_meu_negocio[:50]}..." if google_meu_negocio else "   🏢 Sem informações do Google")
