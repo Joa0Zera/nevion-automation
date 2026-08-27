@@ -96,6 +96,26 @@ def converter_cor_descricao(cor_descricao: str) -> dict:
         }
 
 
+
+# Famílias de cor (nome em português -> nomes/palavras equivalentes em inglês usados em CSS).
+# Usado por validar_antes_de_fazer_push pra saber quais nomes de cor são "fora da paleta"
+# do cliente, sem travar clientes cuja cor de marca não seja roxo/branco.
+FAMILIAS_COR = {
+    'azul': ['blue'],
+    'vermelho': ['red'],
+    'verde': ['green'],
+    'amarelo': ['yellow'],
+    'dourado': ['gold'],
+    'ouro': ['gold'],
+    'laranja': ['orange'],
+    'roxo': ['purple'],
+    'rosa': ['pink'],
+    'ciano': ['cyan'],
+    'turquesa': ['teal', 'turquoise'],
+    'marrom': ['brown'],
+}
+
+
 def buscar_lead_no_leadengine(telefone: str) -> dict:
     """
     Busca um lead no LeadEngine pelo telefone.
@@ -248,10 +268,12 @@ def raspar_e_adicionar_imagens(briefing):
     return briefing
 
 
-def executar_claude(briefing, pasta_projeto, cores=None, google_meu_negocio="", nome_empresa="empresa-teste", cor_descricao=""):
-    """Executa Claude Code pra criar a Landing Page."""
-
-    os.makedirs(pasta_projeto, exist_ok=True)
+def montar_prompt_blindado(nome_empresa, briefing, cores, google_meu_negocio, cor_descricao, pasta_projeto):
+    """
+    Monta prompt IMPOSSÍVEL DE IGNORAR para Claude Code.
+    Cores e imagens são calculadas dinamicamente a partir do briefing/cores reais
+    do projeto (nunca fixas em roxo/branco), pra funcionar com qualquer paleta.
+    """
 
     briefing_json = json.dumps(
         briefing,
@@ -480,6 +502,16 @@ VOCÊ DEVE REALMENTE CRIAR OS ARQUIVOS DO PROJETO.
 ===========================================
 """
 
+    return prompt
+
+
+def executar_claude(briefing, pasta_projeto, cores=None, google_meu_negocio="", nome_empresa="empresa-teste", cor_descricao=""):
+    """Executa Claude Code pra criar a Landing Page."""
+
+    os.makedirs(pasta_projeto, exist_ok=True)
+
+    prompt = montar_prompt_blindado(nome_empresa, briefing, cores, google_meu_negocio, cor_descricao, pasta_projeto)
+
     print("\n==============================")
     print("INICIANDO CLAUDE CODE")
     print("==============================")
@@ -504,6 +536,91 @@ VOCÊ DEVE REALMENTE CRIAR OS ARQUIVOS DO PROJETO.
     return resultado
 
 
+def _coletar_texto_css(pasta_projeto):
+    """Junta o texto de todo .css do projeto + qualquer <style> inline nos .html, em minúsculas."""
+    textos = []
+    for raiz, _dirs, arquivos in os.walk(pasta_projeto):
+        for nome in arquivos:
+            caminho = os.path.join(raiz, nome)
+            if nome.lower().endswith(".css"):
+                try:
+                    with open(caminho, "r", encoding="utf-8", errors="ignore") as f:
+                        textos.append(f.read())
+                except Exception:
+                    pass
+            elif nome.lower().endswith(".html"):
+                try:
+                    with open(caminho, "r", encoding="utf-8", errors="ignore") as f:
+                        html = f.read()
+                    textos.extend(re.findall(r"<style[^>]*>(.*?)</style>", html, re.IGNORECASE | re.DOTALL))
+                except Exception:
+                    pass
+    return "\n".join(textos).lower()
+
+
+def validar_antes_de_fazer_push(pasta_projeto, cor_descricao=""):
+    """
+    Valida cores e imagens antes de fazer git push.
+    A validação de cor é dinâmica: bane apenas famílias de cor que NÃO correspondem
+    à cor_descricao do projeto, pra não travar clientes cuja marca não seja roxo/branco.
+    Retorna (True, mensagem) se passou, (False, mensagem) se falhou.
+    """
+    print("\n🔍 VALIDAÇÃO PRÉ-PUSH...")
+
+    css_texto = _coletar_texto_css(pasta_projeto)
+
+    if css_texto:
+        cor_texto = (cor_descricao or "").lower()
+        familias_permitidas = {pt for pt in FAMILIAS_COR if pt in cor_texto}
+
+        # Palavras em inglês liberadas por QUALQUER família permitida (evita banir uma
+        # palavra que também pertence a um sinônimo pt permitido, ex.: "dourado"/"ouro" -> "gold")
+        en_permitidas = set()
+        for pt in familias_permitidas:
+            en_permitidas.update(FAMILIAS_COR[pt])
+
+        palavras_proibidas = []
+        for pt, en_lista in FAMILIAS_COR.items():
+            if pt in familias_permitidas:
+                continue
+            palavras_proibidas.append(pt)
+            palavras_proibidas.extend(en for en in en_lista if en not in en_permitidas)
+
+        for palavra in palavras_proibidas:
+            if re.search(r'\b' + re.escape(palavra) + r'\b', css_texto):
+                msg = f"Encontrada cor fora da paleta ('{palavra}') no CSS — a marca é \"{cor_descricao or 'não especificada'}\""
+                print(f"❌ FALHA: {msg}")
+                return False, msg
+
+        print("✅ CSS validado: nenhuma cor fora da paleta encontrada")
+    else:
+        print(f"⚠️ Nenhum CSS (arquivo .css ou <style>) encontrado em: {pasta_projeto}")
+
+    # Valida HTML (procura por imagens fake) — isso é só um aviso, não bloqueia o push
+    html_path = os.path.join(pasta_projeto, "index.html")
+    if os.path.exists(html_path):
+        try:
+            with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
+                html_content = f.read()
+
+            palavras_suspeitas = [r'stock\s', r'illustration', r'generic', r'placeholder\s+image']
+            suspeitas_encontradas = [
+                p for p in palavras_suspeitas if re.search(p, html_content, re.IGNORECASE)
+            ]
+
+            if suspeitas_encontradas:
+                print(f"⚠️ Aviso: possíveis imagens genéricas: {suspeitas_encontradas} (verifique manualmente)")
+            else:
+                print("✅ HTML validado: nenhuma imagem genérica óbvia encontrada")
+        except Exception as e:
+            print(f"⚠️ Erro ao ler index.html: {e}")
+    else:
+        print(f"⚠️ index.html não encontrado em: {html_path}")
+
+    print("✅ VALIDAÇÃO PASSOU - Git push liberado!")
+    return True, "Validação OK"
+
+
 def npm_install(pasta_projeto):
     """Executa npm install."""
     resultado = executar_comando(
@@ -524,9 +641,15 @@ def npm_build(pasta_projeto):
     return resultado and resultado.returncode == 0
 
 
-def git_init_e_push(pasta_projeto, nome_repo):
+def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     """Inicializa git, faz commit e cria repo no GitHub."""
-    
+
+    # Valida cores e imagens antes de fazer push
+    ok, msg_validacao = validar_antes_de_fazer_push(pasta_projeto, cor_descricao)
+    if not ok:
+        print(f"❌ Validação falhou! Página rejeitada: {msg_validacao}")
+        return False, f"Validação falhou: {msg_validacao}"
+
     # git init
     if not executar_comando("git init", pasta_projeto, descricao="Inicializando git"):
         return False, "Erro ao inicializar git"
@@ -795,7 +918,8 @@ class Handler(BaseHTTPRequestHandler):
 
             sucesso_git, msg_git = git_init_e_push(
                 pasta_projeto,
-                nome_repo
+                nome_repo,
+                cor_descricao=cor_descricao
             )
 
             if not sucesso_git:
