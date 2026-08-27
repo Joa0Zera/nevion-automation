@@ -688,7 +688,7 @@ def executar_claude(briefing, pasta_projeto, cores=None, google_meu_negocio="", 
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=1800
+        timeout=2700
     )
 
     return resultado
@@ -1036,6 +1036,12 @@ class Handler(BaseHTTPRequestHandler):
                         print(f"   ✅ {nome_arquivo} salvo ({len(imagem_bytes) / 1024:.0f}KB)")
                     except Exception as e:
                         print(f"   ❌ Erro ao salvar {nome_arquivo}: {e}")
+
+                # Remove base64 gigante do briefing pra não ficar pesado (já foi salvo em disco acima)
+                briefing['imagens'] = [
+                    {'nome': img.get('nome', f'imagem_{i}.jpg')} if isinstance(img, dict) else {'nome': f'imagem_{i}.jpg'}
+                    for i, img in enumerate(briefing['imagens'])
+                ]
 
             # =====================================
             # 0.1. RASPAR IMAGENS DO INSTAGRAM
