@@ -268,9 +268,9 @@ def raspar_e_adicionar_imagens(briefing):
     return briefing
 
 
-def montar_prompt_blindado(nome_empresa, briefing, cores, google_meu_negocio, cor_descricao, pasta_projeto):
+def montar_prompt_ultra_rigoroso(nome_empresa, briefing, cores, google_meu_negocio, cor_descricao, pasta_projeto):
     """
-    Monta prompt IMPOSSÍVEL DE IGNORAR para Claude Code.
+    Prompt ULTRA-RIGOROSO - "você não tem liberdade criativa".
     Cores e imagens são calculadas dinamicamente a partir do briefing/cores reais
     do projeto (nunca fixas em roxo/branco), pra funcionar com qualquer paleta.
     """
@@ -312,16 +312,17 @@ INSTRUÇÕES CRÍTICAS:
 1. Releia o CSS principal do projeto
 2. Liste todo HEX/nome de cor usado nele
 3. Cada um deve ser exatamente {primaria_hex}, {secundaria_hex} ou {destaque_hex} (ou tom/opacidade derivada de um deles)
-4. Se encontrar QUALQUER cor fora dessa paleta = corrija aquela regra antes de terminar
-5. Valide CADA botão: deve usar {primaria_hex}
-6. Valide CADA link: deve usar {primaria_hex}
-7. Se TUDO estiver dentro da paleta = SUCESSO
-8. Se ALGO não estiver = REFAÇA antes de encerrar
+4. Se encontrar QUALQUER cor fora dessa paleta = FALHOU TUDO, corrija antes de terminar
+5. Valide CADA botão, link, título e accent: devem usar {primaria_hex}
+6. Se TUDO estiver dentro da paleta = SUCESSO
+7. Se ALGO não estiver = SERÁ REJEITADO
 """
 
     # Referências de páginas prontas para Claude Code usar como inspiração
     referencias_prompt = """
-📚 PÁGINAS DE REFERÊNCIA (use como inspiração de design):
+🚨🚨🚨 VOCÊ NÃO TEM LIBERDADE CRIATIVA 🚨🚨🚨
+
+📚 CÓPIA OBRIGATÓRIA DE DESIGN — estude estas 3 páginas de SUCESSO:
 
 1. REFERÊNCIA 1: Mykael Silva | Enfermeiro Esteta
    Link: https://lp-mykael-silva.vercel.app/
@@ -335,14 +336,16 @@ INSTRUÇÕES CRÍTICAS:
    Link: https://fisiobeauty-landing-page.vercel.app/
    Design: Animações fluidas, tipografia moderna, efeitos hover
 
-⚡ INSTRUÇÕES: Analise essas páginas e aplique os melhores padrões visuais na nova página!
-Use os mesmos tipos de:
-- Cards e layouts
-- Efeitos de hover
-- Animações
-- Tipografia
-- Paleta de cores
-- Estrutura responsiva
+COPIE EXATAMENTE dessas 3 referências:
+- Estrutura de seções (mesma ordem)
+- Tipos de cards (mesmos tamanhos)
+- Tipografia (mesmo estilo de fontes)
+- Spacing (mesmos gaps)
+- Hover effects (mesmas animações)
+- Layout responsivo (mesmos breakpoints)
+- Gradientes (mesmas direções)
+
+Não crie algo "novo" - REPLIQUE o que funciona. Você NÃO tem liberdade criativa aqui.
 """
 
     def _contar_imagens(valor):
@@ -384,10 +387,10 @@ SE NÃO TEM IMAGENS ({total_imagens} acima == 0):
 
 ✅ CHECKLIST DE IMAGENS (antes de terminar):
 1. Procure por TODAS as tags <img> no index.html
-2. Se há {total_imagens} imagens no briefing e alguma NÃO foi usada = corrija antes de terminar
-3. Se tem SVG decorativo no lugar de foto real = FALHOU
+2. Se há {total_imagens} imagens no briefing e alguma NÃO foi usada = FALHOU TUDO, corrija antes de terminar
+3. Se tem SVG/illustration decorativo no lugar de foto real = FALHOU
 4. Se tem foto genérica/stock no lugar de uma fornecida = FALHOU
-5. Se {total_imagens} == 0 e usou o placeholder com texto acima = OK, está correto
+5. Se {total_imagens} == 0 e usou o placeholder com texto GRANDE e VISÍVEL acima = OK, está correto
 6. Se usou cada imagem fornecida = OK
 
 Se {total_imagens} > 0, confira que nenhuma foi trocada por algo genérico:
@@ -497,6 +500,13 @@ Antes de terminar, responda SIM a:
 
 Se algum ☑ = NÃO, REFAÇA!
 
+LEMBRE-SE:
+- Você NÃO tem liberdade criativa
+- Você TEM que copiar o design das 3 referências
+- Você TEM que usar exatamente as cores {primaria_hex} / {secundaria_hex}
+- Você TEM que usar imagens reais (ou placeholder com texto, se não houver)
+- Se não fizer = SERÁ REJEITADO
+
 Não fique apenas descrevendo o que deveria ser feito.
 VOCÊ DEVE REALMENTE CRIAR OS ARQUIVOS DO PROJETO.
 ===========================================
@@ -510,7 +520,7 @@ def executar_claude(briefing, pasta_projeto, cores=None, google_meu_negocio="", 
 
     os.makedirs(pasta_projeto, exist_ok=True)
 
-    prompt = montar_prompt_blindado(nome_empresa, briefing, cores, google_meu_negocio, cor_descricao, pasta_projeto)
+    prompt = montar_prompt_ultra_rigoroso(nome_empresa, briefing, cores, google_meu_negocio, cor_descricao, pasta_projeto)
 
     print("\n==============================")
     print("INICIANDO CLAUDE CODE")
