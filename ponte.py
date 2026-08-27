@@ -261,11 +261,41 @@ def executar_claude(briefing, pasta_projeto, cores=None, google_meu_negocio="", 
 
     cor_descricao_texto = cor_descricao or "não especificada"
 
-    cores_texto = "Nenhuma cor pré-calculada foi fornecida — gere você mesmo os HEX a partir da descrição acima."
-    if cores:
-        cores_texto = f"""Primária: {cores.get('primaria', '#4a9eff')}
-   Secundária: {cores.get('secundaria', '#2d5a7a')}
-   Destaque: {cores.get('destaque', '#ffa500')}"""
+    primaria_hex = (cores.get('primaria') if cores else None) or '#4a9eff'
+    secundaria_hex = (cores.get('secundaria') if cores else None) or '#2d5a7a'
+    destaque_hex = (cores.get('destaque') if cores else None) or '#ffa500'
+
+    cores_mandatorio = f"""
+🚨 CORES OBRIGATÓRIAS - 100% NÃO NEGOCIÁVEL:
+
+Descrição original da marca: "{cor_descricao_texto}"
+
+Cor Primária: {primaria_hex}
+Cor Secundária: {secundaria_hex}
+Cor Destaque: {destaque_hex}
+
+INSTRUÇÕES CRÍTICAS:
+- TODOS os botões = {primaria_hex}
+- TODOS os links = {primaria_hex}
+- TODOS os accents/ícones = {primaria_hex}
+- Backgrounds = {secundaria_hex} ou gradiente entre {primaria_hex} e {secundaria_hex}
+- Headers/Footers = {primaria_hex}
+
+⚠️ A PALETA É SÓ ESTA - NADA FORA DELA:
+- Só use estes 3 HEX (e variações de tom/opacidade DERIVADAS deles): {primaria_hex}, {secundaria_hex}, {destaque_hex}
+- NÃO use nenhum outro HEX nem nome de cor CSS (blue, red, green, purple, azul, vermelho, verde, roxo etc.) que não corresponda a um desses três
+- Esses HEX já foram calculados a partir da descrição da marca acima — use-os exatamente, não reinterprete a descrição
+
+✅ CHECKLIST FINAL OBRIGATÓRIO (antes de terminar):
+1. Releia o CSS principal do projeto
+2. Liste todo HEX/nome de cor usado nele
+3. Cada um deve ser exatamente {primaria_hex}, {secundaria_hex} ou {destaque_hex} (ou tom/opacidade derivada de um deles)
+4. Se encontrar QUALQUER cor fora dessa paleta = corrija aquela regra antes de terminar
+5. Valide CADA botão: deve usar {primaria_hex}
+6. Valide CADA link: deve usar {primaria_hex}
+7. Se TUDO estiver dentro da paleta = SUCESSO
+8. Se ALGO não estiver = REFAÇA antes de encerrar
+"""
 
     # Referências de páginas prontas para Claude Code usar como inspiração
     referencias_prompt = """
@@ -295,6 +325,7 @@ Use os mesmos tipos de:
 
     prompt = f"""
 {referencias_prompt}
+{cores_mandatorio}
 
 ===========================================
 INSTRUÇÕES CRÍTICAS - CUMPRIR 100%:
@@ -305,15 +336,7 @@ VOCÊ DEVE SEGUIR O BRIEFING EXATAMENTE COMO ESTÁ. NÃO INVENTE NADA.
 BRIEFING COMPLETO (fonte única da verdade — o que não estiver aqui não existe):
 {briefing_json}
 
-1. CORES DA MARCA (OBRIGATÓRIO):
-   - Descrição fornecida: "{cor_descricao_texto}"
-   - Cores já calculadas automaticamente a partir dessa descrição (use estas exatamente, são a fonte confiável):
-   {cores_texto}
-   - Use APENAS essas cores na página
-   - NÃO use cores genéricas/padrão
-   - NÃO mude as cores porque achou melhor
-
-2. IMAGENS (OBRIGATÓRIO):
+1. IMAGENS (OBRIGATÓRIO):
    - Verifique o campo "imagens" dentro do BRIEFING acima (ex.: briefing.briefing_landing_page.imagens.hero e .antes_depois)
    - Se houver imagens fornecidas: USE APENAS ESSAS
    - NÃO crie/invente imagens falsas
@@ -321,7 +344,7 @@ BRIEFING COMPLETO (fonte única da verdade — o que não estiver aqui não exis
    - Se NÃO houver imagens no briefing, use placeholder com texto "Espaço para foto real"
    - Nunca gere imagens com IA ou crie imagens inexistentes
 
-3. DESIGN DAS REFERÊNCIAS (OBRIGATÓRIO):
+2. DESIGN DAS REFERÊNCIAS (OBRIGATÓRIO):
    - Estude estas 3 referências de SUCESSO:
      * Mykael Silva (lp-mykael-silva.vercel.app) - Layout limpo, cards destacados, CTA visuais
      * Instituto Liza Carbon (instituto-liza-carbon.vercel.app) - Cores boldas, galeria profissional, premium
@@ -330,7 +353,7 @@ BRIEFING COMPLETO (fonte única da verdade — o que não estiver aqui não exis
    - Use a mesma estrutura, mesmos tipos de cards, mesmos efeitos
    - Não crie algo "novo" - REPLIQUE o que funciona!
 
-4. RESPONDA AO BRIEFING 100%:
+3. RESPONDA AO BRIEFING 100%:
    - Empresa: {nome_empresa}
    - Google Meu Negócio: {google_meu_negocio if google_meu_negocio else "não informado"}
    - Serviço, descrição, telefone e demais campos: leia diretamente do BRIEFING acima — os nomes dos campos variam conforme a origem do lead, então NÃO assuma um formato fixo, use o que realmente está no JSON
