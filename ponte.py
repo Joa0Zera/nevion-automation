@@ -2,6 +2,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import subprocess
 import os
+import base64
 import re
 import traceback
 from datetime import datetime
@@ -309,8 +310,19 @@ def montar_prompt_ultra_rigoroso(nome_empresa, briefing, cores, google_meu_negoc
     do projeto (nunca fixas em roxo/branco), pra funcionar com qualquer paleta.
     """
 
+    # Remove o base64 das imagens antes de dumpar o briefing no prompt — as imagens já
+    # foram salvas em disco (assets/imagens/) pelo do_POST, então só o nome importa aqui.
+    # Sem isso, briefings com várias fotos inflavam o prompt e causavam timeout.
+    briefing_para_prompt = briefing
+    if isinstance(briefing, dict) and briefing.get('imagens'):
+        briefing_para_prompt = dict(briefing)
+        briefing_para_prompt['imagens'] = [
+            {'nome': img.get('nome')} if isinstance(img, dict) else {'nome': str(img)[:60]}
+            for img in briefing['imagens']
+        ]
+
     briefing_json = json.dumps(
-        briefing,
+        briefing_para_prompt,
         ensure_ascii=False,
         indent=2
     )
@@ -471,13 +483,40 @@ Se faltar QUALQUER efeito = REFAÇA!
     imagens_briefing = {}
     if isinstance(briefing, dict):
         imagens_briefing = briefing.get("briefing", {}).get("briefing_landing_page", {}).get("imagens", {})
-    total_imagens = _contar_imagens(imagens_briefing)
+
+    # Imagens vindas em base64 (lote do nevion-hub) já foram salvas em assets/imagens/
+    # pelo do_POST — contam pro total, mas não entram mais como base64 no prompt.
+    imagens_locais = []
+    if isinstance(briefing, dict) and briefing.get('imagens'):
+        imagens_locais = [
+            os.path.basename(img.get('nome') or '')
+            for img in briefing['imagens']
+            if isinstance(img, dict) and img.get('nome')
+        ]
+
+    total_imagens = _contar_imagens(imagens_briefing) + len(imagens_locais)
+
+    imagens_disponiveis = ""
+    if imagens_locais:
+        lista_arquivos = "\n".join(f"- ./assets/imagens/{nome}" for nome in imagens_locais)
+        imagens_disponiveis = f"""
+✅ IMAGENS JÁ SALVAS LOCALMENTE (não use base64):
+Pasta: assets/imagens/
+{len(imagens_locais)} imagens disponíveis:
+{lista_arquivos}
+
+USE ASSIM NO HTML:
+<img src="./assets/imagens/{imagens_locais[0]}" alt="...">
+
+As imagens JÁ ESTÃO na pasta do projeto — referencie pelo caminho relativo acima,
+NÃO embuta base64 no HTML/CSS.
+"""
 
     validacao_imagens = f"""
 🚨 IMAGENS OBRIGATÓRIAS - 100% NÃO NEGOCIÁVEL:
 
 Quantidade de imagens fornecidas no BRIEFING: {total_imagens}
-
+{imagens_disponiveis}
 SE TEM IMAGENS FORNECIDAS ({total_imagens} acima > 0):
 - VOCÊ DEVE usar TODAS elas na página
 - NÃO substitua por genéricas
@@ -968,7 +1007,38 @@ class Handler(BaseHTTPRequestHandler):
                     print(f"⚠️ Erro ao deletar pasta: {e}")
 
             # =====================================
-            # 0. RASPAR IMAGENS DO INSTAGRAM
+            # 0. SALVAR IMAGENS (base64) EM DISCO
+            # =====================================
+            # Salva as imagens vindas em base64 (ex.: lote do nevion-hub) direto em
+            # assets/imagens/, ao invés de embutir o base64 inteiro no prompt/JSON
+            # enviado ao Claude Code — isso evita prompts gigantes e timeout.
+            pasta_imagens = os.path.join(pasta_projeto, 'assets', 'imagens')
+            os.makedirs(pasta_imagens, exist_ok=True)
+
+            imagens_flat = briefing.get('imagens') if isinstance(briefing, dict) else None
+            if imagens_flat:
+                print(f"\n💾 Salvando {len(imagens_flat)} imagens em {pasta_imagens}...")
+                for idx, img in enumerate(imagens_flat):
+                    nome_arquivo = f'imagem_{idx}.jpg'
+                    try:
+                        if isinstance(img, dict):
+                            base64_data = img.get('base64', '')
+                            nome_arquivo = os.path.basename(img.get('nome') or nome_arquivo)
+                        else:
+                            base64_data = img
+
+                        imagem_bytes = base64.b64decode(base64_data)
+
+                        caminho_arquivo = os.path.join(pasta_imagens, nome_arquivo)
+                        with open(caminho_arquivo, 'wb') as f:
+                            f.write(imagem_bytes)
+
+                        print(f"   ✅ {nome_arquivo} salvo ({len(imagem_bytes) / 1024:.0f}KB)")
+                    except Exception as e:
+                        print(f"   ❌ Erro ao salvar {nome_arquivo}: {e}")
+
+            # =====================================
+            # 0.1. RASPAR IMAGENS DO INSTAGRAM
             # =====================================
             briefing = raspar_e_adicionar_imagens(briefing)
 
