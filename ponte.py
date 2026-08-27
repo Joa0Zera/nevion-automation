@@ -248,7 +248,7 @@ def raspar_e_adicionar_imagens(briefing):
     return briefing
 
 
-def executar_claude(briefing, pasta_projeto, cores=None, google_meu_negocio=""):
+def executar_claude(briefing, pasta_projeto, cores=None, google_meu_negocio="", nome_empresa="empresa-teste", cor_descricao=""):
     """Executa Claude Code pra criar a Landing Page."""
 
     os.makedirs(pasta_projeto, exist_ok=True)
@@ -259,21 +259,13 @@ def executar_claude(briefing, pasta_projeto, cores=None, google_meu_negocio=""):
         indent=2
     )
 
-    secao_cores = ""
-    if cores:
-        secao_cores = f"""
-PALETA DE CORES DEFINIDA (use exatamente estes hex codes na identidade visual):
-- Cor primária: {cores.get('primaria', '#4a9eff')}
-- Cor secundária: {cores.get('secundaria', '#2d5a7a')}
-- Cor de destaque: {cores.get('destaque', '#ffa500')}
-"""
+    cor_descricao_texto = cor_descricao or "não especificada"
 
-    secao_google = ""
-    if google_meu_negocio:
-        secao_google = f"""
-INFORMAÇÕES DO GOOGLE MEU NEGÓCIO (avaliações, horário, descrição etc — utilize o que for relevante e real):
-{google_meu_negocio}
-"""
+    cores_texto = "Nenhuma cor pré-calculada foi fornecida — gere você mesmo os HEX a partir da descrição acima."
+    if cores:
+        cores_texto = f"""Primária: {cores.get('primaria', '#4a9eff')}
+   Secundária: {cores.get('secundaria', '#2d5a7a')}
+   Destaque: {cores.get('destaque', '#ffa500')}"""
 
     # Referências de páginas prontas para Claude Code usar como inspiração
     referencias_prompt = """
@@ -304,93 +296,136 @@ Use os mesmos tipos de:
     prompt = f"""
 {referencias_prompt}
 
-Você é o desenvolvedor responsável pela criação automática de Landing Pages da Nevion.
+===========================================
+INSTRUÇÕES CRÍTICAS - CUMPRIR 100%:
+===========================================
 
-Recebeu o briefing abaixo de uma empresa.
+VOCÊ DEVE SEGUIR O BRIEFING EXATAMENTE COMO ESTÁ. NÃO INVENTE NADA.
 
-BRIEFING:
+BRIEFING COMPLETO (fonte única da verdade — o que não estiver aqui não existe):
 {briefing_json}
-{secao_cores}{secao_google}
-TAREFA:
 
-Crie uma Landing Page profissional, premium e moderna para essa empresa.
+1. CORES DA MARCA (OBRIGATÓRIO):
+   - Descrição fornecida: "{cor_descricao_texto}"
+   - Cores já calculadas automaticamente a partir dessa descrição (use estas exatamente, são a fonte confiável):
+   {cores_texto}
+   - Use APENAS essas cores na página
+   - NÃO use cores genéricas/padrão
+   - NÃO mude as cores porque achou melhor
 
-IMPORTANTE:
+2. IMAGENS (OBRIGATÓRIO):
+   - Verifique o campo "imagens" dentro do BRIEFING acima (ex.: briefing.briefing_landing_page.imagens.hero e .antes_depois)
+   - Se houver imagens fornecidas: USE APENAS ESSAS
+   - NÃO crie/invente imagens falsas
+   - NÃO use ilustrações SVG genéricas
+   - Se NÃO houver imagens no briefing, use placeholder com texto "Espaço para foto real"
+   - Nunca gere imagens com IA ou crie imagens inexistentes
+
+3. DESIGN DAS REFERÊNCIAS (OBRIGATÓRIO):
+   - Estude estas 3 referências de SUCESSO:
+     * Mykael Silva (lp-mykael-silva.vercel.app) - Layout limpo, cards destacados, CTA visuais
+     * Instituto Liza Carbon (instituto-liza-carbon.vercel.app) - Cores boldas, galeria profissional, premium
+     * Fisiobeauty (fisiobeauty-landing-page.vercel.app) - Animações fluidas, tipografia moderna, efeitos hover
+   - COPIE o padrão visual dessas 3 páginas
+   - Use a mesma estrutura, mesmos tipos de cards, mesmos efeitos
+   - Não crie algo "novo" - REPLIQUE o que funciona!
+
+4. RESPONDA AO BRIEFING 100%:
+   - Empresa: {nome_empresa}
+   - Google Meu Negócio: {google_meu_negocio if google_meu_negocio else "não informado"}
+   - Serviço, descrição, telefone e demais campos: leia diretamente do BRIEFING acima — os nomes dos campos variam conforme a origem do lead, então NÃO assuma um formato fixo, use o que realmente está no JSON
+   - NUNCA invente telefone, endereço, serviços, avaliações, depoimentos, números ou certificações que não estejam no BRIEFING
+
+===========================================
+ESTRUTURA OBRIGATÓRIA:
+===========================================
+
+Seções EXIGIDAS (nesta ordem):
+1. Header fixo com logo/nome + menu + CTA WhatsApp
+2. Hero section com foto REAL (se tiver) ou placeholder
+3. Serviço/Categoria (destaque do que oferece)
+4. Sobre atendimento (texto do Google Meu Negócio)
+5. Diferenciais (4-5 pontos)
+6. Galeria de antes & depois (com fotos reais se tiver)
+7. CTA final (agendar/contato)
+8. Contato (WhatsApp, telefone, Instagram, localização)
+9. Footer
+
+===========================================
+IMAGENS (CRÍTICO):
+===========================================
+
+SE TEM IMAGENS NO BRIEFING:
+- Coloque EXATAMENTE as imagens fornecidas
+- Não substitua por genéricas
+- Use em Hero, Galeria, Sobre
+
+SE NÃO TEM IMAGENS:
+- Use placeholder: <div style="background: linear-gradient(...); height: 400px; display: flex; align-items: center;"><p>Espaço para foto real</p></div>
+- NÃO invente imagens com IA
+- NÃO crie SVGs decorativas fake
+
+===========================================
+STACK:
+===========================================
+
+- HTML5 semântico (sem framework)
+- CSS3 puro (Grid, Flexbox, Custom Properties)
+- JavaScript vanilla (scroll reveal, menu mobile)
+- Google Fonts (conforme referências)
+- SEM Node.js, SEM build, SEM npm
+- Pronto pra Vercel (arquivo único index.html ou com /assets)
+
+===========================================
+REGRAS OPERACIONAIS (NÃO PULAR):
+===========================================
 
 1. Trabalhe exclusivamente dentro desta pasta:
 {pasta_projeto}
 
 2. Crie todo o projeto da Landing Page dentro dessa pasta.
 
-3. Utilize uma stack moderna adequada para uma Landing Page profissional.
+3. Não publique nada na internet.
 
-4. A página deve ser responsiva para:
-- Desktop
-- Tablet
-- Mobile
+4. Não utilize GitHub ou Vercel ainda — isso é feito depois, por outro processo.
 
-5. O design deve ser premium e visualmente sofisticado.
+5. Crie um README.md explicando como executar o projeto.
 
-6. Utilize:
-- tipografia profissional
-- hierarquia visual forte
-- espaçamento consistente
-- animações suaves
-- transições
-- microinterações
-- efeitos de hover
-- scroll reveal
-- CTAs bem destacados
-- excelente experiência mobile
+6. NÃO execute npm install ou npm run build - deixe preparado apenas.
 
-7. A identidade visual deve ser baseada nas informações existentes no briefing.
-
-8. Utilize somente informações presentes no briefing.
-
-9. NUNCA invente:
-- telefone
-- endereço
-- serviços
-- avaliações
-- depoimentos reais
-- informações profissionais
-- números
-- certificações
-
-10. Quando alguma informação estiver ausente, utilize uma solução visual neutra ou remova aquela informação da página.
-
-11. Não utilize depoimentos fictícios como se fossem reais.
-
-12. Caso existam URLs de imagens no briefing (especialmente em briefing.imagens.hero e briefing.imagens.antes_depois), utilize-as quando apropriado.
-
-13. Se não existirem imagens reais, utilize imagens ilustrativas adequadas ao nicho, deixando a estrutura preparada para substituição posterior.
-
-14. Não publique nada na internet.
-
-15. Não utilize GitHub ou Vercel ainda.
-
-16. Crie um README.md explicando como executar o projeto.
-
-17. NÃO execute npm install ou npm run build - deixe preparado apenas.
-
-18. CRIE TAMBÉM um arquivo vercel.json na raiz do projeto com este conteúdo EXATO:
+7. CRIE TAMBÉM um arquivo vercel.json na raiz do projeto com este conteúdo EXATO:
 ```json
 {{
   "buildCommand": "",
   "outputDirectory": "."
 }}
 ```
-
 Este arquivo diz ao Vercel que é um projeto HTML puro, sem build necessário.
 
-19. Ao terminar, informe:
+8. Ao terminar, informe:
 - caminho do projeto
 - stack utilizada
 - principais seções criadas
 
-Não fique apenas descrevendo o que deveria ser feito.
+===========================================
+FINAL CHECKS:
+===========================================
 
+Antes de terminar, responda SIM a:
+☑ Respeitei 100% as cores de "{cor_descricao_texto}"?
+☑ Usei APENAS as imagens fornecidas no briefing (não criei falsas)?
+☑ Copiei o design das 3 referências (Mykael, Liza, Fisiobeauty)?
+☑ Incluí TODAS as seções obrigatórias?
+☑ Usei somente dados que realmente estão no BRIEFING acima?
+☑ Nenhuma informação foi inventada?
+☑ Projeto é 100% estático, sem build?
+☑ Criei o vercel.json com o conteúdo exato pedido?
+
+Se algum ☑ = NÃO, REFAÇA!
+
+Não fique apenas descrevendo o que deveria ser feito.
 VOCÊ DEVE REALMENTE CRIAR OS ARQUIVOS DO PROJETO.
+===========================================
 """
 
     print("\n==============================")
@@ -625,7 +660,9 @@ class Handler(BaseHTTPRequestHandler):
                 briefing,
                 pasta_projeto,
                 cores=cores,
-                google_meu_negocio=google_meu_negocio
+                google_meu_negocio=google_meu_negocio,
+                nome_empresa=nome_empresa,
+                cor_descricao=cor_descricao
             )
 
             print("\n==============================")
