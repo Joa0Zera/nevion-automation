@@ -731,11 +731,11 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     ok, msg_validacao = validar_antes_de_fazer_push(pasta_projeto, cor_descricao)
     if not ok:
         print(f"❌ Validação falhou! Página rejeitada: {msg_validacao}")
-        return False, f"Validação falhou: {msg_validacao}"
+        return False, f"Validação falhou: {msg_validacao}", None
 
     # git init
     if not executar_comando("git init", pasta_projeto, descricao="Inicializando git"):
-        return False, "Erro ao inicializar git"
+        return False, "Erro ao inicializar git", None
     
     # git config user (local)
     executar_comando(
@@ -751,16 +751,55 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     
     # git add .
     if not executar_comando("git add .", pasta_projeto, descricao="Adicionando arquivos ao git"):
-        return False, "Erro ao adicionar arquivos"
-    
+        return False, "Erro ao adicionar arquivos", None
+
     # git commit
     if not executar_comando(
         'git commit -m "Landing page automatizada Nevion"',
         pasta_projeto,
         descricao="Fazendo commit"
     ):
-        return False, "Erro ao fazer commit"
+        return False, "Erro ao fazer commit", None
     
+    def _deploy_vercel():
+        """
+        Faz deploy de produção no Vercel via CLI, direto da pasta local — não depende
+        de webhook do GitHub (que pode não estar configurado na conta). Retorna a URL
+        real do deploy, ou None se o CLI não estiver disponível ou o deploy falhar.
+        """
+        if shutil.which('vercel') is None:
+            print("   ⚠️ Vercel CLI não encontrado no PATH - pulando deploy automático")
+            return None
+
+        print("\n▶ Fazendo deploy no Vercel...")
+        try:
+            resultado_vercel = subprocess.run(
+                ["vercel", "--prod", "--yes"],
+                cwd=pasta_projeto,
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+        except subprocess.TimeoutExpired:
+            print("   ❌ Deploy Vercel excedeu o tempo limite (5min)")
+            return None
+        except Exception as e:
+            print(f"   ❌ Erro ao rodar deploy Vercel: {e}")
+            return None
+
+        if resultado_vercel.returncode == 0:
+            print("   ✅ Deploy Vercel realizado com sucesso!")
+            output = resultado_vercel.stdout
+            linhas_url = [linha for linha in output.split('\n') if 'vercel.app' in linha]
+            url_vercel = linhas_url[0].strip() if linhas_url else None
+            if url_vercel:
+                print(f"   Link: {url_vercel}")
+            return url_vercel
+
+        print("   ⚠️ Deploy Vercel falhou (mas repositório foi criado)")
+        print(resultado_vercel.stderr)
+        return None
+
     def _fallback_ssh(motivo):
         """Configura remote SSH manualmente e faz push, quando o gh CLI não está disponível ou falha."""
         print("⚠️  Tentando fallback: configurar remote SSH manualmente...")
@@ -774,17 +813,18 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
             remote_add = executar_comando(f'git remote add origin {remote_url}', pasta_projeto, descricao="Configurando remote SSH")
             if remote_add is None or remote_add.returncode != 0:
                 erro_remote = remote_add.stderr if remote_add else "comando não executou"
-                return False, f"{motivo} | Fallback SSH também falhou ao configurar remote: {erro_remote}"
+                return False, f"{motivo} | Fallback SSH também falhou ao configurar remote: {erro_remote}", None
 
             push = executar_comando('git push -u origin HEAD', pasta_projeto, descricao="Push via SSH (fallback)")
             if push is None or push.returncode != 0:
                 erro_push = push.stderr if push else "comando não executou"
-                return False, f"{motivo} | Fallback SSH também falhou no push: {erro_push}"
+                return False, f"{motivo} | Fallback SSH também falhou no push: {erro_push}", None
 
             print("   ✅ Push feito com sucesso via fallback SSH!")
-            return True, "Repositório enviado via fallback SSH"
+            url_vercel = _deploy_vercel()
+            return True, "Repositório enviado via fallback SSH", url_vercel
         except Exception as e:
-            return False, f"{motivo} | Fallback SSH também falhou: {str(e)}"
+            return False, f"{motivo} | Fallback SSH também falhou: {str(e)}", None
 
     # Verifica se GitHub CLI tá instalado
     if shutil.which('gh') is None:
@@ -825,7 +865,8 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     else:
         print("   ⚠️ Push explícito falhou, mas repositório já foi criado e enviado pelo --push do gh")
 
-    return True, "Repositório criado com sucesso"
+    url_vercel = _deploy_vercel()
+    return True, "Repositório criado com sucesso", url_vercel
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1065,7 +1106,7 @@ class Handler(BaseHTTPRequestHandler):
             print("FASE 4: GIT E GITHUB")
             print("="*50)
 
-            sucesso_git, msg_git = git_init_e_push(
+            sucesso_git, msg_git, url_vercel_real = git_init_e_push(
                 pasta_projeto,
                 nome_repo,
                 cor_descricao=cor_descricao
@@ -1080,7 +1121,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             # =====================================
-            # 5. RETORNAR SUCESSO (Vercel auto-deploy via GitHub)
+            # 5. RETORNAR SUCESSO (deploy direto via Vercel CLI, sem depender de webhook)
             # =====================================
 
             print("\n" + "="*50)
@@ -1089,13 +1130,16 @@ class Handler(BaseHTTPRequestHandler):
             print(f"Empresa: {nome_empresa}")
             print(f"Repositório: {nome_repo}")
             print(f"GitHub: https://github.com/Joa0Zera/{nome_repo}")
-            print(f"Link Vercel: https://{nome_repo}.vercel.app")
-            print("⏳ Vercel tá fazendo o deploy via GitHub webhook...")
-            print("   (leva ~1-2 minutos pra ficar pronto)")
+            if url_vercel_real:
+                print(f"Link Vercel: {url_vercel_real}")
+            else:
+                print(f"⚠️ Deploy Vercel via CLI não confirmado — link abaixo é uma URL teórica")
+                print(f"Link Vercel (teórico): https://{nome_repo}.vercel.app")
             print("="*50)
 
-            # URL teórica (Vercel faz auto-deploy via webhook)
-            link_vercel = f"https://{nome_repo}.vercel.app"
+            # Usa a URL real do deploy (vercel --prod) quando disponível; só cai pra
+            # URL teórica se o CLI não estava instalado ou o deploy falhou.
+            link_vercel = url_vercel_real or f"https://{nome_repo}.vercel.app"
 
             resposta = {
                 "status": "concluido",
@@ -1110,7 +1154,7 @@ class Handler(BaseHTTPRequestHandler):
                     "npm_install": "✅ (se necessário)",
                     "npm_build": "✅ (se necessário)",
                     "git_github": "✅ Concluído",
-                    "vercel_deploy": "🔄 Em progresso via GitHub webhook"
+                    "vercel_deploy": "✅ Concluído (deploy direto via CLI)" if url_vercel_real else "⚠️ Não confirmado (link teórico)"
                 }
             }
 
