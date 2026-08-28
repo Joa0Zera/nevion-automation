@@ -866,6 +866,19 @@ class Handler(BaseHTTPRequestHandler):
                 dados.decode("utf-8")
             )
 
+            print("\n🔍 DEBUG CORES:")
+            if isinstance(briefing, dict):
+                print(f"   cor_primaria recebida: {briefing.get('cor_primaria') or '(vazio)'}")
+                print(f"   cor_secundaria recebida: {briefing.get('cor_secundaria') or '(vazio)'}")
+                print(f"   cor_descricao recebida: {briefing.get('cor_descricao') or '(vazio)'}")
+
+                if not briefing.get('cor_primaria'):
+                    print("   → cor_primaria vazio, será convertida de cor_descricao")
+                else:
+                    print("   → cor_primaria preenchida, será usada direto")
+            else:
+                print(f"   briefing veio como {type(briefing).__name__} (formato lista do LeadEngine) - sem cor_primaria/cor_descricao no topo")
+
             print("\n==============================")
             print("BRIEFING RECEBIDO PELO N8N")
             print("==============================")
@@ -922,6 +935,11 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 cor_descricao = cor_descricao or "azul profissional"
                 cores = converter_cor_descricao(cor_descricao)
+
+            print(f"\n✨ CORES APÓS CONVERSÃO:")
+            print(f"   Primária: {cores.get('primaria')}")
+            print(f"   Secundária: {cores.get('secundaria')}")
+            print(f"   Destaque: {cores.get('destaque')}")
 
             print(f"\n✨ PROCESSANDO PÁGINA: {nome_empresa}")
             print(f"   🏢 Google Meu Negócio: {google_meu_negocio[:50]}..." if google_meu_negocio else "   🏢 Sem informações do Google")
