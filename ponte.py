@@ -805,20 +805,42 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
         print("⚠️  Tentando fallback: configurar remote SSH manualmente...")
 
         try:
-            # Remove remote antigo se existir (gh pode ter deixado parcialmente configurado)
-            executar_comando('git remote remove origin', pasta_projeto, descricao="Removendo remote antigo (se existir)")
+            print("\n▶ Removendo remote antigo (se existir)...")
+            resultado = subprocess.run(
+                ["git", "remote", "remove", "origin"],
+                cwd=pasta_projeto,
+                capture_output=True
+            )
+            print(f"   Resultado: {resultado.returncode}")
 
-            # Adiciona remote novo com SSH
+            print("\n▶ Configurando remote SSH...")
+            # Fixo no repo nevion-automation: o fallback só roda quando o gh NÃO
+            # conseguiu criar um repo novo, então Joa0Zera/{nome_repo} nunca existiria.
             remote_url = "git@github.com:Joa0Zera/nevion-automation.git"
-            remote_add = executar_comando(f'git remote add origin {remote_url}', pasta_projeto, descricao="Configurando remote SSH")
-            if remote_add is None or remote_add.returncode != 0:
-                erro_remote = remote_add.stderr if remote_add else "comando não executou"
-                return False, f"{motivo} | Fallback SSH também falhou ao configurar remote: {erro_remote}", None
+            remote_add = subprocess.run(
+                ["git", "remote", "add", "origin", remote_url],
+                cwd=pasta_projeto,
+                capture_output=True,
+                text=True
+            )
+            if remote_add.returncode != 0:
+                print(f"   ❌ Erro: {remote_add.stderr}")
+                return False, f"{motivo} | Fallback SSH também falhou ao configurar remote: {remote_add.stderr}", None
+            else:
+                print(f"   ✅ OK")
 
-            push = executar_comando('git push -u origin HEAD', pasta_projeto, descricao="Push via SSH (fallback)")
-            if push is None or push.returncode != 0:
-                erro_push = push.stderr if push else "comando não executou"
-                return False, f"{motivo} | Fallback SSH também falhou no push: {erro_push}", None
+            print("\n▶ Push via SSH (fallback)...")
+            push = subprocess.run(
+                ["git", "push", "-u", "origin", "HEAD"],
+                cwd=pasta_projeto,
+                capture_output=True,
+                text=True
+            )
+            if push.returncode != 0:
+                print(f"   ❌ Erro: {push.stderr}")
+                return False, f"{motivo} | Fallback SSH também falhou no push: {push.stderr}", None
+            else:
+                print(f"   ✅ Push OK")
 
             print("   ✅ Push feito com sucesso via fallback SSH!")
             url_vercel = _deploy_vercel()
