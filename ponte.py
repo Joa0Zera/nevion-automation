@@ -848,9 +848,25 @@ class Handler(BaseHTTPRequestHandler):
             print("BRIEFING RECEBIDO PELO N8N")
             print("==============================")
 
+            # Printa briefing SEM base64 (muito grande) — só nome + tamanho aproximado
+            briefing_display = briefing
+            try:
+                if isinstance(briefing, dict) and isinstance(briefing.get('imagens'), list):
+                    briefing_display = briefing.copy()
+                    briefing_display['imagens'] = [
+                        {
+                            'nome': img.get('nome', '?'),
+                            'tamanho_aproximado': f"{len(img.get('base64', '')) / 1024:.0f}KB"
+                        } if isinstance(img, dict) else {'nome': str(img)[:60]}
+                        for img in briefing_display['imagens']
+                    ]
+            except Exception as e:
+                print(f"⚠️ Erro ao preparar briefing pra exibição (mostrando original): {e}")
+                briefing_display = briefing
+
             print(
                 json.dumps(
-                    briefing,
+                    briefing_display,
                     indent=2,
                     ensure_ascii=False
                 )
