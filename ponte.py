@@ -613,7 +613,7 @@ def executar_claude(briefing, pasta_projeto, cores=None, google_meu_negocio="", 
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=1800
+        timeout=600
     )
 
     return resultado
