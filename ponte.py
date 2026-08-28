@@ -471,10 +471,130 @@ grep -i "stock\\|illustration\\|generic\\|fake" index.html
 Se retornar algo = corrija antes de terminar
 """
 
+    design_premium = """
+🎨 DESIGN PREMIUM - OBRIGATÓRIO:
+
+1. IMAGENS SEM CROP:
+No CSS, imagens de fotos reais (produto, equipe, ambiente) devem usar:
+```css
+img {
+  object-fit: contain;
+  object-position: center;
+  width: 100%;
+  max-height: 500px;
+  border-radius: 12px;
+  padding: 10px;
+  background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
+}
+```
+Isso evita cortar rosto/produto da imagem original. NÃO use `object-fit: cover` pra fotos principais.
+
+2. VISUAL PREMIUM (CSS):
+```css
+.card, .servico, .resultado {
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+.card:hover, .servico:hover, .resultado:hover {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
+}
+section {
+  padding: 60px 20px;
+}
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+h1, h2, h3 {
+  letter-spacing: -0.5px;
+  font-weight: 600;
+}
+```
+O hero deve usar gradiente com as cores obrigatórias definidas acima (primária → uma variação mais escura dela), não cores genéricas.
+
+3. GOOGLE MAPS NA SEÇÃO DE CONTATO (OBRIGATÓRIO SE HOUVER ENDEREÇO NO BRIEFING):
+Se o BRIEFING tiver um endereço real, inclua um mapa embutido na seção de contato usando
+o formato de busca por texto (não precisa de API key nem de place ID fixo):
+```html
+<div class="mapa-container">
+  <iframe
+    src="https://www.google.com/maps?q=ENDERECO_REAL_DO_BRIEFING_URL_ENCODED&output=embed"
+    width="100%" height="400" style="border: none; border-radius: 12px;"
+    allowfullscreen="" loading="lazy">
+  </iframe>
+</div>
+```
+```css
+.mapa-container {
+  width: 100%;
+  height: 400px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 40px;
+}
+```
+Substitua ENDERECO_REAL_DO_BRIEFING_URL_ENCODED pelo endereço que está de fato no BRIEFING
+(nome + rua + cidade), devidamente URL-encoded. NÃO invente um endereço nem use um de exemplo.
+Se o BRIEFING não tiver endereço, NÃO inclua mapa — não invente localização.
+
+4. BANNER DE OFERTA (OPCIONAL — só se fizer sentido com o BRIEFING):
+Se o BRIEFING mencionar alguma promoção, condição especial ou desconto real, destaque em um
+banner logo após o Hero, no estilo abaixo. NÃO invente percentual de desconto ou condição que
+não esteja no BRIEFING — nesse caso, pule este banner ou use uma chamada genérica sem número.
+```html
+<section class="oferta-exclusiva">
+  <div class="container">
+    <h3>Oferta Exclusiva do Site</h3>
+    <p class="desconto-badge">[condição real do BRIEFING]</p>
+    <p class="desconto-texto">Condição especial só para quem chegou até aqui pelo site.</p>
+    <a href="https://wa.me/TELEFONE_REAL_DO_BRIEFING?text=Olá, vim pelo site e quero aproveitar a oferta!" class="botao-oferta">
+      Quero aproveitar
+    </a>
+  </div>
+</section>
+```
+```css
+.oferta-exclusiva {
+  background: linear-gradient(135deg, #FFFFFF 0%, #f0f0f0 100%);
+  padding: 40px 20px;
+  border: 2px solid var(--cor-primaria);
+  border-radius: 12px;
+  text-align: center;
+  margin: 40px 0;
+}
+.desconto-badge {
+  font-size: 32px;
+  font-weight: bold;
+  color: var(--cor-primaria);
+  margin: 10px 0;
+}
+.botao-oferta {
+  background: linear-gradient(135deg, var(--cor-primaria), var(--cor-secundaria));
+  color: white;
+  padding: 12px 30px;
+  border-radius: 25px;
+  text-decoration: none;
+  display: inline-block;
+  margin-top: 15px;
+  transition: all 0.3s ease;
+}
+.botao-oferta:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+```
+(Troque var(--cor-primaria)/var(--cor-secundaria) pelos HEX obrigatórios definidos na seção de cores acima, ou defina essas custom properties no :root usando os mesmos HEX.)
+
+⚠️ TELEFONE, ENDEREÇO E QUALQUER OFERTA/DESCONTO usados nesta seção DEVEM vir do BRIEFING acima.
+NUNCA reutilize um telefone, endereço, Instagram ou percentual de desconto de outro projeto/exemplo.
+"""
+
     prompt = f"""
 {referencias_prompt}
 {cores_mandatorio}
 {validacao_imagens}
+{design_premium}
 
 ===========================================
 INSTRUÇÕES CRÍTICAS - CUMPRIR 100%:
@@ -507,12 +627,13 @@ ESTRUTURA OBRIGATÓRIA:
 Seções EXIGIDAS (nesta ordem):
 1. Header fixo com logo/nome + menu + CTA WhatsApp
 2. Hero section com foto REAL (se tiver) ou placeholder
+2.1. Banner de oferta (opcional — ver seção DESIGN PREMIUM, só se houver oferta real no BRIEFING)
 3. Serviço/Categoria (destaque do que oferece)
 4. Sobre atendimento (texto do Google Meu Negócio)
 5. Diferenciais (4-5 pontos)
 6. Galeria de antes & depois (com fotos reais se tiver)
 7. CTA final (agendar/contato)
-8. Contato (WhatsApp, telefone, Instagram, localização)
+8. Contato (WhatsApp, telefone, Instagram, localização, mapa se houver endereço — ver seção DESIGN PREMIUM)
 9. Footer
 
 ===========================================
