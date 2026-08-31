@@ -9,6 +9,8 @@ from datetime import datetime
 import sys
 import shutil
 import requests
+import asyncio
+import time
 
 # Importar o módulo de raspar Instagram
 try:
@@ -22,6 +24,42 @@ except ImportError as e:
 
 PORTA = 8765
 PASTA_PROJETOS = r"C:\nevion-automation\projetos"
+
+
+async def gerar_screenshot(url_vercel, pasta_projeto):
+    """
+    Gera screenshot da página Vercel e salva como assets/preview.png.
+    Playwright é dependência opcional: se não estiver instalado, avisa e retorna None
+    em vez de quebrar o fluxo de criação da página.
+    """
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        print("   ⚠️ Playwright não instalado — pulando preview (pip install playwright && playwright install chromium)")
+        return None
+
+    try:
+        print(f"\n📸 Gerando preview da página: {url_vercel}")
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page(viewport={"width": 1200, "height": 800})
+
+            await page.goto(url_vercel, wait_until="networkidle", timeout=30000)
+            await page.wait_for_timeout(2000)
+
+            screenshot_path = os.path.join(pasta_projeto, 'assets', 'preview.png')
+            os.makedirs(os.path.dirname(screenshot_path), exist_ok=True)
+
+            await page.screenshot(path=screenshot_path, full_page=True)
+            await browser.close()
+
+            print(f"   ✅ Preview salvo em: {screenshot_path}")
+            return screenshot_path
+
+    except Exception as e:
+        print(f"   ⚠️ Erro ao gerar screenshot: {e}")
+        return None
 
 
 # Mapeamento de cores em português para hex, usado tanto por converter_cor_descricao
@@ -1165,6 +1203,58 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
         print("   ✅ Push confirmado!")
     else:
         print("   ⚠️ Push explícito falhou, mas repositório já foi criado e enviado pelo --push do gh")
+
+    # Gerar preview (screenshot) da página — não bloqueia o sucesso do deploy se falhar
+    print("\n▶ Gerando preview da página...")
+    url_vercel = f"https://{nome_repo}.vercel.app"
+
+    # Aguarda a página ficar online (até 30s), com espera entre tentativas mesmo
+    # quando o request retorna mas não é 200 (não só em caso de exceção)
+    pagina_online = False
+    for tentativa in range(30):
+        try:
+            response = requests.get(url_vercel, timeout=5)
+            if response.status_code == 200:
+                print("   ✅ Página online!")
+                pagina_online = True
+                break
+        except requests.RequestException:
+            pass
+
+        if tentativa < 29:
+            print(f"   ⏳ Tentativa {tentativa + 1}/30... aguardando página online")
+            time.sleep(1)
+
+    if not pagina_online:
+        print("   ⚠️ Página não respondeu 200 em 30s — tentando screenshot mesmo assim")
+
+    screenshot_path = None
+    try:
+        screenshot_path = asyncio.run(gerar_screenshot(url_vercel, pasta_projeto))
+    except Exception as e:
+        print(f"   ⚠️ Não foi possível gerar preview: {e}")
+
+    if screenshot_path:
+        print("\n▶ Fazendo commit do preview...")
+        executar_comando("git add assets/preview.png", pasta_projeto, descricao="Adicionando preview")
+
+        commit_preview = executar_comando(
+            'git commit -m "Adiciona preview da página"',
+            pasta_projeto,
+            descricao="Commitando preview"
+        )
+        if commit_preview is not None and commit_preview.returncode == 0:
+            print("   ✅ Preview adicionado!")
+
+            push_preview = executar_comando("git push -u origin master", pasta_projeto, descricao="Fazendo push do preview")
+            if push_preview is not None and push_preview.returncode == 0:
+                print("   ✅ Preview enviado!")
+            else:
+                print("   ⚠️ Push do preview falhou (repositório e página já estão publicados normalmente)")
+        else:
+            print("   ⚠️ Nada novo pra commitar (preview pode já existir)")
+    else:
+        print("   ℹ️ Preview não foi gerado — pulando commit/push do preview.png")
 
     return True, "Repositório criado com sucesso"
 
