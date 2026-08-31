@@ -62,6 +62,172 @@ async def gerar_screenshot(url_vercel, pasta_projeto):
         return None
 
 
+def executar_claude_com_prompt(prompt_text, pasta_projeto, timeout=600):
+    """
+    Roda o claude.cmd com um prompt livre (não montado por montar_prompt_ultra_rigoroso),
+    numa pasta já existente — usado pra refinamentos pontuais, não pra criar página do zero.
+    Retorna dict {sucesso, stdout, stderr, code, erro}, igual ao equivalente em server.js.
+    """
+    try:
+        resultado = subprocess.run(
+            [
+                r"C:\Users\joaov\AppData\Roaming\npm\claude.cmd",
+                "-p",
+                "--permission-mode",
+                "acceptEdits"
+            ],
+            input=prompt_text,
+            cwd=pasta_projeto,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout
+        )
+        return {
+            'sucesso': resultado.returncode == 0,
+            'stdout': resultado.stdout,
+            'stderr': resultado.stderr,
+            'code': resultado.returncode,
+            'erro': resultado.stderr if resultado.returncode != 0 else None
+        }
+    except subprocess.TimeoutExpired:
+        return {'sucesso': False, 'stdout': '', 'stderr': '', 'code': None, 'erro': f'Timeout ({timeout}s) esperando o Claude Code'}
+    except Exception as e:
+        return {'sucesso': False, 'stdout': '', 'stderr': '', 'code': None, 'erro': str(e)}
+
+
+async def analisar_secao_com_vision(url_secao, nome_secao, pasta_projeto):
+    """
+    Tira screenshot de uma seção, analisa com a API da Anthropic (Claude Vision),
+    e retorna recomendações específicas de design.
+
+    ⚠️ Isso é DIFERENTE do claude.cmd usado no resto do pipeline: chama a API da
+    Anthropic diretamente, com custo por chamada (precisa de ANTHROPIC_API_KEY),
+    e do pacote `anthropic` (pip install anthropic). Ambos são opcionais — se
+    faltarem, avisa e retorna None em vez de quebrar a criação da página.
+    """
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        print("   ⚠️ Playwright não instalado — pulando análise visual")
+        return None
+
+    try:
+        import anthropic
+    except ImportError:
+        print("   ⚠️ Pacote 'anthropic' não instalado (pip install anthropic) — pulando análise visual")
+        return None
+
+    if not os.environ.get('ANTHROPIC_API_KEY'):
+        print("   ⚠️ ANTHROPIC_API_KEY não configurada — pulando análise visual")
+        return None
+
+    try:
+        print(f"\n🔍 Analisando seção: {nome_secao}")
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page(viewport={"width": 1200, "height": 800})
+
+            await page.goto(url_secao, wait_until="networkidle", timeout=30000)
+            await page.wait_for_timeout(2000)
+
+            screenshot_path = os.path.join(pasta_projeto, f'analise_{nome_secao}.png')
+            await page.screenshot(path=screenshot_path)
+
+            await browser.close()
+
+            print(f"   ✅ Screenshot: {screenshot_path}")
+
+        prompt_analise = f"""
+Você é um designer premium especializado em landing pages.
+Analise esta seção de landing page ({nome_secao}) e dê recomendações ESPECÍFICAS:
+
+1. Tipografia: tamanho, peso, espaçamento adequado?
+2. Cores: harmonia com a paleta? Contraste suficiente?
+3. Spacing: padding/margin adequado?
+4. Efeitos: scroll reveal, hover, parallax?
+5. Layout: grid/flex correto?
+6. Componentes: cards, botões estão bem?
+7. Imagens: tamanho, posição, border-radius?
+
+RETORNE EXATAMENTE ASSIM (sem markdown):
+TIPOGRAFIA: [recomendação]
+CORES: [recomendação]
+SPACING: [recomendação]
+EFEITOS: [recomendação]
+LAYOUT: [recomendação]
+COMPONENTES: [recomendação]
+IMAGENS: [recomendação]
+PRIORIDADE: [alta/média/baixa]
+"""
+
+        client = anthropic.Anthropic()
+
+        with open(screenshot_path, 'rb') as f:
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+
+        message = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": image_data
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": prompt_analise
+                        }
+                    ]
+                }
+            ]
+        )
+
+        analise = message.content[0].text
+        print("   📋 Análise concluída")
+
+        return analise
+
+    except Exception as e:
+        print(f"   ⚠️ Erro ao analisar: {e}")
+        return None
+
+
+def refinar_secao_com_analise(nome_secao, analise):
+    """Monta prompt pra Claude Code refinar uma seção baseado na análise do Vision."""
+    prompt_refino = f"""
+REFINAR SEÇÃO: {nome_secao}
+
+ANÁLISE DO DESIGNER:
+{analise}
+
+TAREFA:
+Aplique EXATAMENTE essas recomendações na seção {nome_secao}.
+Edite APENAS os arquivos CSS/HTML necessários.
+Não delete nada, apenas melhore.
+NÃO execute npm install, npm run build, git add, git commit, git push — isso é
+feito depois, por outro processo.
+
+Se recomendou "tipografia maior" → aumente font-size
+Se recomendou "mais spacing" → aumente padding
+Se recomendou "efeito scroll" → adicione fade-in/slide
+Se recomendou "cores melhor" → ajuste gradientes/contraste
+Se recomendou "layout grid" → use grid em vez de flex
+
+Pronto quando tiver aplicado TODAS as recomendações.
+"""
+    return prompt_refino
+
+
 # Mapeamento de cores em português para hex, usado tanto por converter_cor_descricao
 # (texto -> hex) quanto por nome_cor_mais_proxima (hex -> texto, o caminho inverso).
 CORES_MAP_PT = {
@@ -636,6 +802,11 @@ Você DEVE copiar EXATAMENTE o nível visual das 3 referências:
 3. fisiobeauty-landing-page.vercel.app (cores vibrantes, efeitos suaves)
 
 ESTRUTURA OBRIGATÓRIA (mínimo 8 seções):
+
+⚠️ IDs DE ÂNCORA OBRIGATÓRIOS: a seção Hero PRECISA ter id="hero", a de Serviços
+id="servicos", a de Depoimentos id="depoimentos", e a de Contato id="contato"
+(mesmo que o texto/título da seção seja outro). Essas âncoras são usadas por uma
+ferramenta externa de análise pra navegar direto até cada seção.
 
 ✅ SEÇÃO 1: BANNER DE OFERTA (sticky ou topo)
    - Só inclua se houver oferta/condição real no BRIEFING (ver seção de oferta acima)
@@ -1356,6 +1527,66 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
             print("   ⚠️ Nada novo pra commitar (preview pode já existir)")
     else:
         print("   ℹ️ Preview não foi gerado — pulando commit/push do preview.png")
+
+    # =====================================
+    # FASE PREMIUM (opcional): análise visual + refinamento por seção
+    # Desligada por padrão — liga com a variável de ambiente ANALISE_VISUAL=1.
+    # Usa a API da Anthropic (custo por chamada) + roda o Claude Code de novo por
+    # seção (até alguns minutos cada), então só ativa se você realmente quiser
+    # pagar esse tempo/custo em toda página criada.
+    # =====================================
+    if os.environ.get('ANALISE_VISUAL') == '1' and pagina_online:
+        print("\n🎨 FASE PREMIUM: Analisando seções...")
+
+        secoes = [
+            ('hero', f'{url_vercel}#hero'),
+            ('servicos', f'{url_vercel}#servicos'),
+            ('depoimentos', f'{url_vercel}#depoimentos'),
+            ('contato', f'{url_vercel}#contato'),
+        ]
+
+        for nome_secao, url_secao in secoes:
+            try:
+                analise = asyncio.run(analisar_secao_com_vision(url_secao, nome_secao, pasta_projeto))
+
+                if not analise:
+                    continue
+
+                prompt_refino = refinar_secao_com_analise(nome_secao, analise)
+
+                print(f"\n   ▶ Refinando {nome_secao}...")
+                resultado_refino = executar_claude_com_prompt(prompt_refino, pasta_projeto)
+
+                if not resultado_refino['sucesso']:
+                    print(f"   ⚠️ {nome_secao}: {resultado_refino['erro']}")
+                    continue
+
+                print(f"   ✅ {nome_secao} refinada com sucesso!")
+
+                # Sem isso, a edição fica só na pasta local e nunca chega no repositório/Vercel
+                status_secao = executar_comando('git status --porcelain', pasta_projeto)
+                if status_secao is not None and status_secao.stdout.strip():
+                    executar_comando('git add .', pasta_projeto, descricao=f"Adicionando refino de {nome_secao}")
+                    commit_secao = executar_comando(
+                        f'git commit -m "Refina secao {nome_secao} (analise visual)"',
+                        pasta_projeto,
+                        descricao=f"Commitando refino de {nome_secao}"
+                    )
+                    if commit_secao is not None and commit_secao.returncode == 0:
+                        push_secao = executar_comando("git push -u origin master", pasta_projeto, descricao=f"Enviando refino de {nome_secao}")
+                        if push_secao is not None and push_secao.returncode == 0:
+                            print(f"   ✅ Refino de {nome_secao} enviado!")
+                        else:
+                            print(f"   ⚠️ Push do refino de {nome_secao} falhou")
+                else:
+                    print(f"   ℹ️ {nome_secao}: Claude Code rodou mas não alterou nada")
+
+            except Exception as e:
+                print(f"   ⚠️ Erro ao refinar {nome_secao}: {e}")
+
+            time.sleep(30)  # rate limit entre análises
+    elif os.environ.get('ANALISE_VISUAL') == '1':
+        print("\n   ℹ️ Fase premium pulada: página não confirmou estar online")
 
     return True, "Repositório criado com sucesso"
 
