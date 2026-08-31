@@ -627,6 +627,106 @@ não esteja no BRIEFING — nesse caso, pule este banner ou use uma chamada gen�
 NUNCA reutilize um telefone, endereço, Instagram ou percentual de desconto de outro projeto/exemplo.
 """
 
+    estrutura_e_efeitos_premium = """
+🎨 ESTRUTURA E EFEITOS PREMIUM - NÍVEL MYKAEL/LIZA/FISIOBEAUTY:
+
+Você DEVE copiar EXATAMENTE o nível visual das 3 referências:
+1. lp-mykael-silva.vercel.app (banner oferta, cards premium, gradientes)
+2. instituto-liza-carbon.vercel.app (layout sofisticado, spacing perfeito)
+3. fisiobeauty-landing-page.vercel.app (cores vibrantes, efeitos suaves)
+
+ESTRUTURA OBRIGATÓRIA (mínimo 8 seções):
+
+✅ SEÇÃO 1: BANNER DE OFERTA (sticky ou topo)
+   - Só inclua se houver oferta/condição real no BRIEFING (ver seção de oferta acima)
+   - Grande destaque visual, CTA agressivo (botão colorido)
+   - Fundo gradiente ou sólido (contrasta com tema)
+
+✅ SEÇÃO 2: HERO PREMIUM
+   - Headline GRANDE e IMPACTANTE (40-60px)
+   - Subheadline explicativo
+   - 2-3 CTAs (WhatsApp, telefone, agendar) — dados reais do BRIEFING
+   - Fundo: gradiente diagonal cores da marca (HEX obrigatórios definidos acima)
+   - Imagem grande lado direito (se houver, real do BRIEFING)
+   - Stats/números em destaque (avaliações, atendimentos etc — só se existirem no BRIEFING)
+
+✅ SEÇÃO 3: CREDIBILIDADE
+   - "Por que confiar?" — 3-4 cards com ícones
+   - Números + textos curtos (baseados no BRIEFING/Google Meu Negócio, não invente)
+   - Cards com hover lift effect
+
+✅ SEÇÃO 4: SERVIÇOS/PROCEDIMENTOS
+   - Grid de cards (2-3 colunas), um por serviço real do BRIEFING
+   - Cada card: ícone + título + descrição
+   - Hover: sombra aumenta, sobe 4px, cor muda
+
+✅ SEÇÃO 5: SOBRE/PROFISSIONAL
+   - Layout split: texto esquerda, imagem direita
+   - Tipografia sofisticada (Playfair Display + Poppins)
+   - Line-height 1.8, destaques em bold ou cor primária
+
+✅ SEÇÃO 6: DIFERENCIAIS
+   - 5-6 itens em lista visual, check marks animados
+   - Fundo: cor secundária bem clara ou gradiente sutil
+
+✅ SEÇÃO 7: DEPOIMENTOS/AVALIAÇÕES (CARROSSEL)
+   - Só inclua depoimentos REAIS se existirem no BRIEFING/Google Meu Negócio —
+     NUNCA invente depoimento ou nota de cliente que não esteja lá
+   - Carousel automático (passa a cada 5s), pausa no hover, dots + prev/next
+
+✅ SEÇÃO 8: GALERIA DE RESULTADOS
+   - Só com imagens reais fornecidas no BRIEFING (ver seção de imagens acima)
+   - Grid 3x2 ou 2x3, hover zoom leve (1.05x) + shadow
+
+✅ SEÇÃO 9: CTA FINAL (urgência, sem inventar prazo/estoque)
+   - Texto motivacional + botão grande destacado
+
+✅ SEÇÃO 10: CONTATO + GOOGLE MAPS
+   - Mesma regra da seção de mapa acima: só com endereço real do BRIEFING
+   - Telefone/WhatsApp clicáveis, redes sociais reais
+
+✅ FOOTER: links úteis, copyright, botão flutuante WhatsApp fixo na tela
+
+EFEITOS VISUAIS OBRIGATÓRIOS (CSS/JS vanilla, sem bibliotecas externas):
+
+✅ SCROLL REVEAL: fade-in + slide-up ao rolar (IntersectionObserver), cards alternando
+   slide esquerda/direita, números contadores crescendo quando visíveis, delay entre elementos
+
+✅ PARALLAX: hero com imagem se movendo mais lento que o scroll (30-50%)
+
+✅ HOVER EFFECTS: cards (sombra + sobe 4px + cor muda), botões (gradiente + brilho),
+   links (underline animado), ícones (rotate leve ou scale 1.1x)
+
+✅ GRADIENTES: hero diagonal (primária → secundária), botões no hover, títulos com gradient text
+
+✅ MICRO-ANIMAÇÕES: ripple nos botões, hambúrguer animado, números crescendo de 0,
+   check marks se desenhando
+
+✅ TIPOGRAFIA: H1/H2 em Playfair Display (serif), body em Poppins, letter-spacing -0.5px
+   em títulos, line-height 1.6-1.8 em parágrafos, pesos 300/400/600/700 (sem 500)
+
+✅ SPACING: padding de seção 60-80px, gaps de grid 24-32px, max-width 1200px,
+   mobile reduz pra 30-40px
+
+✅ SOMBRAS: padrão 0 4px 15px rgba(0,0,0,0.08), hover 0 12px 30px rgba(0,0,0,0.15)
+
+CHECKLIST FINAL:
+1. Mínimo 8-10 seções bem definidas? ✅
+2. Scroll reveal em todas as seções? ✅
+3. Parallax no hero? ✅
+4. Hover effects agressivos? ✅
+5. Gradientes em fundo/botões/texto (com as cores obrigatórias)? ✅
+6. Micro-animações (números, ícones)? ✅
+7. Tipografia Playfair + Poppins? ✅
+8. Spacing generoso (60px+ nas seções)? ✅
+9. Sombras elegantes em cards? ✅
+10. Mobile responsivo? ✅
+11. Nenhuma seção usa dado (depoimento, número, oferta, imagem) que não está no BRIEFING? ✅
+
+Se faltar QUALQUER item de estrutura/efeito = NÃO É SUFICIENTE.
+Se QUALQUER seção usar dado inventado = REFAÇA — prioridade sobre o visual.
+"""
+
     sistema_edicao = """
 🛠️ SISTEMA DE EDIÇÃO (config.json + botão + modal) - OBRIGATÓRIO:
 
@@ -830,6 +930,7 @@ function salvarJSON() {
 {cores_mandatorio}
 {validacao_imagens}
 {design_premium}
+{estrutura_e_efeitos_premium}
 {sistema_edicao}
 
 ===========================================
