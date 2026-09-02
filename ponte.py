@@ -4,6 +4,7 @@ import subprocess
 import os
 import base64
 import re
+import unicodedata
 import traceback
 from datetime import datetime
 import sys
@@ -428,10 +429,15 @@ def obter_item_lead(briefing):
 
 
 def limpar_nome(nome):
-    """Transforma o nome da empresa em um nome seguro para pasta e repo."""
+    """Transforma o nome da empresa em um nome seguro para pasta E repo do GitHub:
+    sem acentos, minúsculo, só a-z/0-9/hífen. Necessário pra nomes de cliente em
+    português (acentos, &, maiúsculas) não virarem nome de repo inválido/estranho."""
     nome = str(nome or "empresa-teste").strip()
-    nome = re.sub(r'[<>:"/\\|?*]', '', nome)
-    nome = re.sub(r'\s+', '-', nome)
+    nome = unicodedata.normalize('NFKD', nome)
+    nome = ''.join(c for c in nome if not unicodedata.combining(c))
+    nome = nome.lower().replace('&', 'e')
+    nome = re.sub(r'[^a-z0-9]+', '-', nome)
+    nome = re.sub(r'-+', '-', nome).strip('-')
     return nome[:80] or "empresa-teste"
 
 
