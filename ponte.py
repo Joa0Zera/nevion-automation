@@ -1391,10 +1391,16 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
         return False, "Erro ao fazer commit"
     
     def _fallback_ssh(motivo):
-        """Configura remote SSH manualmente e faz push, quando o gh CLI não está disponível ou falha."""
+        """Configura remote SSH manualmente e faz push, quando o gh CLI não está disponível ou falha.
+
+        Tenta primeiro o repo DO PROJETO (Joa0Zera/{nome_repo}) — o `gh repo create --push`
+        pode ter chegado a criar o repo no GitHub e falhado só no push (ex.: rede instável),
+        caso em que o repo já existe e é isso que devemos usar. Só cai pro repo compartilhado
+        nevion-automation como último recurso (ex.: gh CLI nem está instalado, então
+        Joa0Zera/{nome_repo} nunca chegou a ser criado)."""
         print("⚠️  Tentando fallback: configurar remote SSH manualmente...")
 
-        try:
+        def _tentar_push(remote_url, rotulo):
             print("\n▶ Removendo remote antigo (se existir)...")
             resultado = subprocess.run(
                 ["git", "remote", "remove", "origin"],
@@ -1403,10 +1409,7 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
             )
             print(f"   Resultado: {resultado.returncode}")
 
-            print("\n▶ Configurando remote SSH...")
-            # Fixo no repo nevion-automation: o fallback só roda quando o gh NÃO
-            # conseguiu criar um repo novo, então Joa0Zera/{nome_repo} nunca existiria.
-            remote_url = "git@github.com:Joa0Zera/nevion-automation.git"
+            print(f"\n▶ Configurando remote SSH ({rotulo})...")
             remote_add = subprocess.run(
                 ["git", "remote", "add", "origin", remote_url],
                 cwd=pasta_projeto,
@@ -1415,11 +1418,10 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
             )
             if remote_add.returncode != 0:
                 print(f"   ❌ Erro: {remote_add.stderr}")
-                return False, f"{motivo} | Fallback SSH também falhou ao configurar remote: {remote_add.stderr}"
-            else:
-                print(f"   ✅ OK")
+                return False, remote_add.stderr
+            print("   ✅ OK")
 
-            print("\n▶ Push via SSH (fallback)...")
+            print(f"\n▶ Push via SSH ({rotulo})...")
             push = subprocess.run(
                 ["git", "push", "-u", "origin", "HEAD"],
                 cwd=pasta_projeto,
@@ -1428,12 +1430,23 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
             )
             if push.returncode != 0:
                 print(f"   ❌ Erro: {push.stderr}")
-                return False, f"{motivo} | Fallback SSH também falhou no push: {push.stderr}"
-            else:
-                print(f"   ✅ Push OK")
+                return False, push.stderr
+            print("   ✅ Push OK")
+            return True, None
 
-            print("   ✅ Push feito com sucesso via fallback SSH!")
-            return True, "Repositório enviado via fallback SSH"
+        try:
+            ok, erro = _tentar_push(f"git@github.com:Joa0Zera/{nome_repo}.git", f"repo do projeto: {nome_repo}")
+            if ok:
+                print("   ✅ Push feito com sucesso via fallback SSH!")
+                return True, "Repositório enviado via fallback SSH"
+
+            print(f"   ⚠️ Push pro repo do projeto falhou ({erro}), tentando repo compartilhado de emergência...")
+            ok2, erro2 = _tentar_push("git@github.com:Joa0Zera/nevion-automation.git", "fallback compartilhado")
+            if ok2:
+                print("   ✅ Push feito com sucesso via fallback SSH (repo compartilhado)!")
+                return True, "Repositório enviado via fallback SSH (repo compartilhado nevion-automation, NÃO o repo do projeto)"
+
+            return False, f"{motivo} | Fallback SSH também falhou: {erro2}"
         except Exception as e:
             return False, f"{motivo} | Fallback SSH também falhou: {str(e)}"
 
