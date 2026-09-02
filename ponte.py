@@ -1495,6 +1495,38 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     else:
         print("   ⚠️ Push explícito falhou, mas repositório já foi criado e enviado pelo --push do gh")
 
+    # Deploy automático no Vercel. --project usa o mesmo nome_repo do GitHub, pra bater
+    # com a URL https://{nome_repo}.vercel.app usada no polling do preview logo abaixo
+    # e no dashboard do Nevion Hub — sem isso, o Vercel nomearia o projeto sozinho
+    # (baseado na pasta local, sem timestamp) e essa URL nunca responderia.
+    vercel_token = os.environ.get("VERCEL_TOKEN", "")
+    if shutil.which('vercel') is None:
+        print("   ⚠️ Vercel CLI não encontrado no PATH — pulando deploy automático")
+    elif not vercel_token:
+        print("   ⚠️ VERCEL_TOKEN não configurado — pulando deploy automático")
+        print("      Gere um token em https://vercel.com/account/tokens e defina com:")
+        print('      $env:VERCEL_TOKEN = "seu-token-aqui"')
+    else:
+        try:
+            print(f"\n🚀 Fazendo deploy no Vercel: {nome_repo}...")
+            deploy_resultado = subprocess.run(
+                [
+                    "vercel", "deploy", "--prod", "--yes",
+                    "--token", vercel_token,
+                    "--project", nome_repo
+                ],
+                cwd=pasta_projeto,
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            if deploy_resultado.returncode == 0:
+                print(f"   ✅ Deploy feito no Vercel! {deploy_resultado.stdout.strip()}")
+            else:
+                print(f"   ⚠️ Deploy automático falhou (deploy manual necessário): {deploy_resultado.stderr.strip()}")
+        except Exception as e:
+            print(f"   ⚠️ Deploy manual necessário (Vercel CLI): {e}")
+
     # Gerar preview (screenshot) da página — não bloqueia o sucesso do deploy se falhar
     print("\n▶ Gerando preview da página...")
     url_vercel = f"https://{nome_repo}.vercel.app"
