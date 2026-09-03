@@ -826,6 +826,7 @@ ferramenta externa de análise pra navegar direto até cada seção.
    - Fundo: gradiente diagonal cores da marca (HEX obrigatórios definidos acima)
    - Imagem grande lado direito (se houver, real do BRIEFING)
    - Stats/números em destaque (avaliações, atendimentos etc — só se existirem no BRIEFING)
+   - VALIDAÇÃO: o hero deve ocupar 100vh (altura da tela toda)
 
 ✅ SEÇÃO 3: CREDIBILIDADE
    - "Por que confiar?" — 3-4 cards com ícones
@@ -841,15 +842,17 @@ ferramenta externa de análise pra navegar direto até cada seção.
    - Layout split: texto esquerda, imagem direita
    - Tipografia sofisticada (Playfair Display + Poppins)
    - Line-height 1.8, destaques em bold ou cor primária
+   - VALIDAÇÃO: contraste do texto sobre o fundo/imagem deve ser ≥4.5:1 (bem legível)
 
 ✅ SEÇÃO 6: DIFERENCIAIS
-   - 5-6 itens em lista visual, check marks animados
+   - 5-6 itens em lista visual, check marks que se desenham ao aparecer (animação
+     de stroke tipo DrawSVG, sem biblioteca externa — só CSS/SVG)
    - Fundo: cor secundária bem clara ou gradiente sutil
 
 ✅ SEÇÃO 7: DEPOIMENTOS/AVALIAÇÕES (CARROSSEL)
    - Só inclua depoimentos REAIS se existirem no BRIEFING/Google Meu Negócio —
      NUNCA invente depoimento ou nota de cliente que não esteja lá
-   - Carousel automático (passa a cada 5s), pausa no hover, dots + prev/next
+   - Carousel automático (passa a cada 5s), pausa no hover, dots pulsantes + prev/next
 
 ✅ SEÇÃO 8: GALERIA DE RESULTADOS
    - Só com imagens reais fornecidas no BRIEFING (ver seção de imagens acima)
@@ -876,7 +879,8 @@ EFEITOS VISUAIS OBRIGATÓRIOS (CSS/JS vanilla, sem bibliotecas externas):
 
 ✅ GRADIENTES: hero diagonal (primária → secundária), botões no hover, títulos com gradient text
 
-✅ MICRO-ANIMAÇÕES: ripple nos botões, hambúrguer animado, números crescendo de 0,
+✅ MICRO-ANIMAÇÕES: ripple effect ao clicar nos botões, ícone hambúrguer do menu mobile
+   anima ao abrir/fechar, números crescendo de 0 até o valor real quando entram na tela,
    check marks se desenhando
 
 ✅ TIPOGRAFIA: H1/H2 em Playfair Display (serif), body em Poppins, letter-spacing -0.5px
