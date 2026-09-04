@@ -26,6 +26,12 @@ except ImportError as e:
 PORTA = 8765
 PASTA_PROJETOS = r"C:\nevion-automation\projetos"
 
+# Descrição fixa que marca um repo do GitHub como "página gerada pelo Nevion Hub".
+# O nome do repo sozinho não serve mais pra isso (não tem timestamp), e a conta do
+# GitHub tem dezenas de outros repos pessoais que não podem aparecer/ser deletados
+# pelo dashboard — o server.js (nevion-hub) filtra por essa mesma string exata.
+MARCADOR_REPO_NEVION = "[Nevion Hub] Landing page gerada automaticamente"
+
 
 async def gerar_screenshot(url_vercel, pasta_projeto):
     """
@@ -1370,12 +1376,12 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     ok, msg_validacao = validar_antes_de_fazer_push(pasta_projeto, cor_descricao)
     if not ok:
         print(f"❌ Validação falhou! Página rejeitada: {msg_validacao}")
-        return False, f"Validação falhou: {msg_validacao}"
+        return False, f"Validação falhou: {msg_validacao}", nome_repo
 
     # git init
     if not executar_comando("git init", pasta_projeto, descricao="Inicializando git"):
-        return False, "Erro ao inicializar git"
-    
+        return False, "Erro ao inicializar git", nome_repo
+
     # git config user (local)
     executar_comando(
         'git config user.email "nevion@automatizado.com"',
@@ -1387,10 +1393,10 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
         pasta_projeto,
         descricao="Configurando nome git"
     )
-    
+
     # git add .
     if not executar_comando("git add .", pasta_projeto, descricao="Adicionando arquivos ao git"):
-        return False, "Erro ao adicionar arquivos"
+        return False, "Erro ao adicionar arquivos", nome_repo
 
     # git commit
     if not executar_comando(
@@ -1398,7 +1404,7 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
         pasta_projeto,
         descricao="Fazendo commit"
     ):
-        return False, "Erro ao fazer commit"
+        return False, "Erro ao fazer commit", nome_repo
     
     def _fallback_ssh(motivo):
         """Configura remote SSH manualmente e faz push, quando o gh CLI não está disponível ou falha.
@@ -1463,28 +1469,54 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     # Verifica se GitHub CLI tá instalado
     if shutil.which('gh') is None:
         print("   ⚠️ GitHub CLI (gh) não encontrado no PATH - usando fallback SSH direto")
-        return _fallback_ssh("GitHub CLI (gh) não está instalado")
+        ok_fallback, msg_fallback = _fallback_ssh("GitHub CLI (gh) não está instalado")
+        return ok_fallback, msg_fallback, nome_repo
 
     print("   ✅ GitHub CLI encontrado")
 
+    def _criar_repo_gh(nome):
+        print(f"\n▶ Criando repositório GitHub: {nome}...")
+        return subprocess.run(
+            [
+                "gh", "repo", "create", nome,
+                "--public",
+                "--source=.",
+                "--remote=origin",
+                "--push",
+                # Sem timestamp no nome, o repo não é mais identificável pelo padrão
+                # -AAAAMMDD-HHMMSS — o nevion-hub agora reconhece "página gerada por
+                # nós" (pra listar e pra liberar o botão de deletar) por essa descrição,
+                # já que a conta do GitHub tem várias dezenas de outros repos pessoais
+                # não relacionados que não podem aparecer/ser deletáveis por lá.
+                "--description", MARCADOR_REPO_NEVION
+            ],
+            cwd=pasta_projeto,
+            capture_output=True,
+            text=True
+        )
+
     # gh repo create (publica e faz push)
-    print(f"\n▶ Criando repositório GitHub: {nome_repo}...")
-    resultado = subprocess.run(
-        [
-            "gh", "repo", "create", nome_repo,
-            "--public",
-            "--source=.",
-            "--remote=origin",
-            "--push"
-        ],
-        cwd=pasta_projeto,
-        capture_output=True,
-        text=True
-    )
+    resultado = _criar_repo_gh(nome_repo)
 
     if resultado.returncode != 0:
-        print(f"❌ Erro ao criar repo via gh: {resultado.stderr}")
-        return _fallback_ssh(f"Erro GitHub: {resultado.stderr}")
+        # Sem timestamp no nome, o repo pode colidir se o mesmo cliente for reprocessado
+        # (reenvio, retry) — antes de cair pro fallback SSH compartilhado, tenta de novo
+        # com um sufixo curto só pra desempatar o nome.
+        if 'already exists' in (resultado.stderr or '').lower():
+            nome_repo_alternativo = f"{nome_repo}-{datetime.now().strftime('%H%M%S')}"
+            print(f"   ⚠️ Repo '{nome_repo}' já existe no GitHub — tentando '{nome_repo_alternativo}'...")
+            resultado_retry = _criar_repo_gh(nome_repo_alternativo)
+            if resultado_retry.returncode == 0:
+                nome_repo = nome_repo_alternativo
+                resultado = resultado_retry
+            else:
+                print(f"❌ Erro ao criar repo alternativo via gh: {resultado_retry.stderr}")
+                ok_fallback, msg_fallback = _fallback_ssh(f"Erro GitHub: {resultado_retry.stderr}")
+                return ok_fallback, msg_fallback, nome_repo
+        else:
+            print(f"❌ Erro ao criar repo via gh: {resultado.stderr}")
+            ok_fallback, msg_fallback = _fallback_ssh(f"Erro GitHub: {resultado.stderr}")
+            return ok_fallback, msg_fallback, nome_repo
 
     print(resultado.stdout)
 
@@ -1643,7 +1675,7 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     elif os.environ.get('ANALISE_VISUAL') == '1':
         print("\n   ℹ️ Fase premium pulada: página não confirmou estar online")
 
-    return True, "Repositório criado com sucesso"
+    return True, "Repositório criado com sucesso", nome_repo
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1763,11 +1795,14 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 print(f"   ⚠️ Usando apenas os dados do briefing (sem Google Meu Negócio)")
 
-            nome_pasta = limpar_nome(nome_empresa)
-            
-            # Adiciona timestamp ao nome do repo pra evitar conflitos
+            nome_cliente_normalizado = limpar_nome(nome_empresa)
+
+            # Timestamp SÓ na pasta local — evita colidir se o mesmo cliente for
+            # reprocessado (reenvio, retry). Repo no GitHub e domínio Vercel ficam
+            # limpos, sem timestamp (git_init_e_push lida com colisão de nome ali).
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            nome_repo = f"{nome_pasta}-{timestamp}"
+            nome_pasta = f"{nome_cliente_normalizado}-{timestamp}"
+            nome_repo = nome_cliente_normalizado
 
             pasta_projeto = os.path.join(
                 PASTA_PROJETOS,
@@ -1901,11 +1936,14 @@ class Handler(BaseHTTPRequestHandler):
             print("FASE 4: GIT E GITHUB")
             print("="*50)
 
-            sucesso_git, msg_git = git_init_e_push(
+            sucesso_git, msg_git, nome_repo_final = git_init_e_push(
                 pasta_projeto,
                 nome_repo,
                 cor_descricao=cor_descricao
             )
+            # git_init_e_push pode ter mudado o nome (ex.: colisão de nome já existente
+            # no GitHub) — usa o nome final de fato criado nas URLs abaixo.
+            nome_repo = nome_repo_final
 
             if not sucesso_git:
                 self.enviar_erro(
