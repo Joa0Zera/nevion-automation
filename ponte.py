@@ -1694,6 +1694,30 @@ class Handler(BaseHTTPRequestHandler):
                 dados.decode("utf-8")
             )
 
+            # DEBUG: mostra nome/contato/tipo recebidos. briefing pode chegar em 3
+            # formatos diferentes (nevion-hub manda nome_empresa/contato/tipo soltos
+            # no topo; n8n manda aninhado em briefing.briefing_landing_page.empresa.nome;
+            # LeadEngine manda uma lista com "nome") — .get() direto quebraria com
+            # AttributeError quando vem como lista, então cada formato é checado à parte.
+            print(f"\n🔍 DEBUG - briefing recebido:")
+            if isinstance(briefing, dict):
+                nome_debug = (
+                    briefing.get("briefing", {}).get("briefing_landing_page", {}).get("empresa", {}).get("nome")
+                    or briefing.get("nome_empresa")
+                    or briefing.get("nome")
+                    or "VAZIO!"
+                )
+                print(f"   nome (resolvido): '{nome_debug}'")
+                print(f"   contato: '{briefing.get('contato', 'VAZIO')}'")
+                print(f"   tipo: '{briefing.get('tipo', 'VAZIO')}'")
+            elif isinstance(briefing, list):
+                primeiro = briefing[0] if briefing and isinstance(briefing[0], dict) else {}
+                print(f"   briefing veio como lista (formato LeadEngine), {len(briefing)} item(ns)")
+                print(f"   nome (item[0]): '{primeiro.get('nome', 'VAZIO!')}'")
+                print(f"   contato (item[0]): '{primeiro.get('contato', 'VAZIO')}'")
+            else:
+                print(f"   briefing veio como {type(briefing).__name__} (formato inesperado)")
+
             print("\n🔍 DEBUG CORES:")
             if isinstance(briefing, dict):
                 print(f"   cor_primaria recebida: {briefing.get('cor_primaria') or '(vazio)'}")
@@ -1742,6 +1766,10 @@ class Handler(BaseHTTPRequestHandler):
             # Tenta descobrir o nome da empresa
             nome_empresa = (
                 (briefing.get("briefing", {}).get("briefing_landing_page", {}).get("empresa", {}).get("nome") if isinstance(briefing, dict) else None)
+                # nevion-hub (lote e refinar) manda "nome_empresa" solto no topo do JSON,
+                # não aninhado nem como "nome" — sem isso, essas páginas caíam sempre no
+                # fallback "empresa-teste".
+                or (briefing.get("nome_empresa") if isinstance(briefing, dict) else None)
                 or item_lead.get("nome")
                 or "empresa-teste"
             )
