@@ -322,41 +322,52 @@ def converter_cor_descricao(cor_descricao: str) -> dict:
     """
 
     cor_descricao = cor_descricao.lower()
+    print(f"DEBUG CORES: procurando por cores em: {cor_descricao[:100]}")
 
-    # Tenta encontrar cores na descrição
-    cores_encontradas = []
+    # Encontra as cores pela posição em que aparecem NO TEXTO, não pela ordem em que
+    # estão definidas em CORES_MAP_PT — senão uma cor citada de passagem mas que
+    # calhe de estar cedo no dicionário (ex.: "branco") furava fila na frente da cor
+    # citada primeiro no texto (ex.: "Taupe com detalhes em branco" virava primária
+    # #FFFFFF em vez de taupe, porque 'branco' vem antes de 'taupe' no dict).
+    ocorrencias = []
     for cor_nome, cor_hex in CORES_MAP_PT.items():
-        if cor_nome in cor_descricao:
-            cores_encontradas.append(cor_hex)
+        posicao = cor_descricao.find(cor_nome)
+        if posicao != -1:
+            ocorrencias.append((posicao, cor_hex))
+    ocorrencias.sort(key=lambda o: o[0])
+    cores_encontradas = [cor_hex for _, cor_hex in ocorrencias]
 
     # Se encontrou 3+ cores, usa as 3 primeiras
     if len(cores_encontradas) >= 3:
-        return {
+        resultado = {
             'primaria': cores_encontradas[0],
             'secundaria': cores_encontradas[1],
             'destaque': cores_encontradas[2]
         }
     # Se encontrou 2, usa as 2 + destaque padrão
     elif len(cores_encontradas) == 2:
-        return {
+        resultado = {
             'primaria': cores_encontradas[0],
             'secundaria': cores_encontradas[1],
             'destaque': '#FF6B35'
         }
     # Se encontrou 1, usa como primária + secundária + destaque padrão
     elif len(cores_encontradas) == 1:
-        return {
+        resultado = {
             'primaria': cores_encontradas[0],
             'secundaria': '#2d5a7a',
             'destaque': '#ffa500'
         }
     # Se não encontrou nenhuma, retorna padrão
     else:
-        return {
+        resultado = {
             'primaria': '#4a9eff',
             'secundaria': '#2d5a7a',
             'destaque': '#ffa500'
         }
+
+    print(f"DEBUG CORES: resultado = {resultado['primaria']}/{resultado['secundaria']}/{resultado['destaque']}")
+    return resultado
 
 
 
@@ -1600,10 +1611,10 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     print("\n▶ Gerando preview da página...")
     url_vercel = f"https://{nome_repo}.vercel.app"
 
-    # Aguarda a página ficar online (até 30s), com espera entre tentativas mesmo
+    # Aguarda a página ficar online (até 60s), com espera entre tentativas mesmo
     # quando o request retorna mas não é 200 (não só em caso de exceção)
     pagina_online = False
-    for tentativa in range(30):
+    for tentativa in range(60):
         try:
             response = requests.get(url_vercel, timeout=5)
             if response.status_code == 200:
@@ -1613,12 +1624,12 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
         except requests.RequestException:
             pass
 
-        if tentativa < 29:
-            print(f"   ⏳ Tentativa {tentativa + 1}/30... aguardando página online")
+        if tentativa < 59:
+            print(f"   ⏳ Tentativa {tentativa + 1}/60... aguardando página online")
             time.sleep(1)
 
     if not pagina_online:
-        print("   ⚠️ Página não respondeu 200 em 30s — tentando screenshot mesmo assim")
+        print("   ⚠️ Página não respondeu 200 em 60s — tentando screenshot mesmo assim")
 
     screenshot_path = None
     try:
@@ -1890,14 +1901,18 @@ class Handler(BaseHTTPRequestHandler):
             imagens_flat = briefing.get('imagens') if isinstance(briefing, dict) else None
             if imagens_flat:
                 print(f"\n💾 Salvando {len(imagens_flat)} imagens em {pasta_imagens}...")
+                nomes_salvos = []
                 for idx, img in enumerate(imagens_flat):
-                    nome_arquivo = f'imagem_{idx}.jpg'
+                    # Sempre sequencial (image_1, image_2...), nunca o nome original do
+                    # cliente — bate com a numeração usada na distribuição de imagens por
+                    # seção do prompt de criação. Mantém a extensão real (detectada do
+                    # nome original) em vez de forçar .png, senão o Vercel serve o
+                    # arquivo com Content-Type errado.
+                    nome_original = img.get('nome', '') if isinstance(img, dict) else ''
+                    _, ext = os.path.splitext(nome_original)
+                    nome_arquivo = f'image_{idx + 1}{ext.lower() if ext else ".jpg"}'
                     try:
-                        if isinstance(img, dict):
-                            base64_data = img.get('base64', '')
-                            nome_arquivo = os.path.basename(img.get('nome') or nome_arquivo)
-                        else:
-                            base64_data = img
+                        base64_data = img.get('base64', '') if isinstance(img, dict) else img
 
                         imagem_bytes = base64.b64decode(base64_data)
 
@@ -1906,13 +1921,17 @@ class Handler(BaseHTTPRequestHandler):
                             f.write(imagem_bytes)
 
                         print(f"   ✅ {nome_arquivo} salvo ({len(imagem_bytes) / 1024:.0f}KB)")
+                        nomes_salvos.append(nome_arquivo)
                     except Exception as e:
                         print(f"   ❌ Erro ao salvar {nome_arquivo}: {e}")
+                        nomes_salvos.append(None)
 
-                # Remove base64 gigante do briefing pra não ficar pesado (já foi salvo em disco acima)
+                # Remove base64 gigante do briefing pra não ficar pesado (já foi salvo em
+                # disco acima) — usa o MESMO nome sequencial que foi de fato salvo, senão
+                # o prompt de criação instruiria o Claude Code a usar um arquivo que não
+                # existe. Imagens que falharam ao salvar (None) ficam de fora da lista.
                 briefing['imagens'] = [
-                    {'nome': img.get('nome', f'imagem_{i}.jpg')} if isinstance(img, dict) else {'nome': f'imagem_{i}.jpg'}
-                    for i, img in enumerate(briefing['imagens'])
+                    {'nome': nome} for nome in nomes_salvos if nome is not None
                 ]
 
             # =====================================
