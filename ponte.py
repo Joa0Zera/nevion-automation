@@ -26,6 +26,13 @@ except ImportError as e:
 PORTA = 8765
 PASTA_PROJETOS = r"C:\nevion-automation\projetos"
 
+# Liga a FASE PREMIUM (análise visual via API da Anthropic + refino por seção) por
+# padrão. Isso tem CUSTO REAL por chamada de API + minutos extras de Claude Code por
+# página — ANTHROPIC_API_KEY ainda não está setado neste ambiente, então por enquanto
+# isso continua sem efeito prático (a análise é pulada com aviso), mas passa a rodar
+# de verdade assim que a chave for configurada.
+ANALISE_VISUAL = os.environ.get('ANALISE_VISUAL', '1') == '1'
+
 # Descrição fixa que marca um repo do GitHub como "página gerada pelo Nevion Hub".
 # O nome do repo sozinho não serve mais pra isso (não tem timestamp), e a conta do
 # GitHub tem dezenas de outros repos pessoais que não podem aparecer/ser deletados
@@ -654,6 +661,22 @@ As imagens JÁ ESTÃO na pasta do projeto — referencie pelo caminho relativo a
 NÃO embuta base64 no HTML/CSS.
 """
 
+    # Distribuição sugerida das imagens pelas seções, sem assumir uma quantidade mínima
+    # fixa (funciona igual bem com 2 ou com 12 imagens) — pra reduzir o risco real de
+    # sobrar imagem fornecida sem usar, ou de repetir a mesma em duas seções.
+    distribuicao_imagens = ""
+    if total_imagens > 0:
+        distribuicao_imagens = f"""
+DISTRIBUIÇÃO SUGERIDA DAS {total_imagens} IMAGENS PELAS SEÇÕES (cada imagem em EXATAMENTE
+1 lugar — nunca repetida, nunca esquecida; pare de preencher quando elas acabarem, não
+invente mais seções de imagem do que a quantidade real permite):
+1. Hero — 1 imagem
+2. Serviços/Antes-depois — 1-2 imagens (se sobrar)
+3. Sobre — 1 imagem (se sobrar)
+4. Diferenciais — 1-2 imagens (se sobrar)
+5. Galeria — todo o restante
+"""
+
     validacao_imagens = f"""
 🚨 IMAGENS OBRIGATÓRIAS - 100% NÃO NEGOCIÁVEL:
 
@@ -665,7 +688,7 @@ SE TEM IMAGENS FORNECIDAS ({total_imagens} acima > 0):
 - NÃO use SVGs ilustrativos fake
 - NÃO crie imagens com IA
 - NÃO use placeholders decorativos no lugar delas
-- Coloque EM: Hero section, Galeria, Sobre, Antes & Depois (conforme fizer sentido)
+{distribuicao_imagens}
 
 SE NÃO TEM IMAGENS ({total_imagens} acima == 0):
 - Use placeholder com texto: <div style="background: linear-gradient(...); display: flex; align-items: center;"><p>Espaço reservado para foto real</p></div>
@@ -1616,13 +1639,12 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
         print("   ℹ️ Preview não foi gerado — pulando commit/push do preview.png")
 
     # =====================================
-    # FASE PREMIUM (opcional): análise visual + refinamento por seção
-    # Desligada por padrão — liga com a variável de ambiente ANALISE_VISUAL=1.
+    # FASE PREMIUM: análise visual + refinamento por seção
+    # Controlada pela constante ANALISE_VISUAL (env var ANALISE_VISUAL, default '1').
     # Usa a API da Anthropic (custo por chamada) + roda o Claude Code de novo por
-    # seção (até alguns minutos cada), então só ativa se você realmente quiser
-    # pagar esse tempo/custo em toda página criada.
+    # seção (até alguns minutos cada) — defina ANALISE_VISUAL=0 pra desligar.
     # =====================================
-    if os.environ.get('ANALISE_VISUAL') == '1' and pagina_online:
+    if ANALISE_VISUAL and pagina_online:
         print("\n🎨 FASE PREMIUM: Analisando seções...")
 
         secoes = [
@@ -1672,7 +1694,7 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
                 print(f"   ⚠️ Erro ao refinar {nome_secao}: {e}")
 
             time.sleep(30)  # rate limit entre análises
-    elif os.environ.get('ANALISE_VISUAL') == '1':
+    elif ANALISE_VISUAL:
         print("\n   ℹ️ Fase premium pulada: página não confirmou estar online")
 
     return True, "Repositório criado com sucesso", nome_repo
