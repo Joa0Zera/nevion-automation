@@ -857,112 +857,54 @@ NUNCA reutilize um telefone, endereço, Instagram ou percentual de desconto de o
 """
 
     estrutura_e_efeitos_premium = """
-🎨 ESTRUTURA E EFEITOS PREMIUM - NÍVEL MYKAEL/LIZA/FISIOBEAUTY:
+🎨 ESTRUTURA E EFEITOS - NÍVEL MYKAEL/LIZA/FISIOBEAUTY:
 
-Você DEVE copiar EXATAMENTE o nível visual das 3 referências:
-1. lp-mykael-silva.vercel.app (banner oferta, cards premium, gradientes)
+Pense nessas 3 páginas não como um molde pra preencher, mas como referência do NÍVEL
+de acabamento esperado — o mesmo tipo de spacing generoso, transições suaves, hierarquia
+visual clara e sensação de "produto premium" que elas transmitem:
+1. lp-mykael-silva.vercel.app (banner de oferta, cards premium, gradientes)
 2. instituto-liza-carbon.vercel.app (layout sofisticado, spacing perfeito)
 3. fisiobeauty-landing-page.vercel.app (cores vibrantes, efeitos suaves)
 
-ESTRUTURA OBRIGATÓRIA (mínimo 8 seções):
+Só duas coisas aqui são realmente inegociáveis — o resto é sobre você usar o repertório
+dessas referências com liberdade:
 
 ⚠️ IDs DE ÂNCORA OBRIGATÓRIOS: a seção Hero PRECISA ter id="hero", a de Serviços
-id="servicos", a de Depoimentos id="depoimentos", e a de Contato id="contato"
-(mesmo que o texto/título da seção seja outro). Essas âncoras são usadas por uma
-ferramenta externa de análise pra navegar direto até cada seção.
+id="servicos", a de Depoimentos id="depoimentos", e a de Contato id="contato" (mesmo que
+o texto/título visível da seção seja outro) — uma ferramenta externa de análise depende
+desses IDs pra navegar direto até cada seção.
 
-✅ SEÇÃO 1: BANNER DE OFERTA (sticky ou topo)
-   - Só inclua se houver oferta/condição real no BRIEFING (ver seção de oferta acima)
-   - Grande destaque visual, CTA agressivo (botão colorido)
-   - Fundo gradiente ou sólido (contrasta com tema)
+⚠️ NENHUMA seção pode usar depoimento, número, oferta ou imagem que não esteja no
+BRIEFING. Isso vale mais que qualquer escolha de design — se não tem o dado real, não
+invente uma versão bonita dele.
 
-✅ SEÇÃO 2: HERO PREMIUM
-   - Headline GRANDE e IMPACTANTE (40-60px)
-   - Subheadline explicativo
-   - 2-3 CTAs (WhatsApp, telefone, agendar) — dados reais do BRIEFING
-   - Fundo: gradiente diagonal cores da marca (HEX obrigatórios definidos acima)
-   - Imagem grande lado direito (se houver, real do BRIEFING)
-   - Stats/números em destaque (avaliações, atendimentos etc — só se existirem no BRIEFING)
-   - VALIDAÇÃO: o hero deve ocupar 100vh (altura da tela toda)
+Com isso garantido, a página deveria contar uma história em pelo menos 8-10 momentos —
+algo como: um banner de oferta (só se houver condição real no BRIEFING) puxando pra um
+Hero que ocupa a tela inteira e já mostra do que se trata em segundos (headline grande,
+2-3 CTAs com WhatsApp/telefone/agendar reais, imagem de peso se houver uma); depois
+credibilidade (por que confiar — números e textos curtos vindos do BRIEFING/Google Meu
+Negócio); os serviços/procedimentos em destaque, um card por serviço real; uma seção
+sobre o profissional com tipografia mais editorial (line-height confortável, contraste
+de texto sempre legível — pense em 4.5:1 como referência mínima); diferenciais em lista
+visual; depoimentos reais em carrossel (só se existirem — nada inventado); uma galeria
+com as imagens reais fornecidas; um CTA final com urgência genuína (sem inventar prazo
+ou estoque); e contato com Google Maps só se houver endereço real. Fecha com um footer
+enxuto e o WhatsApp flutuante fixo na tela.
 
-✅ SEÇÃO 3: CREDIBILIDADE
-   - "Por que confiar?" — 3-4 cards com ícones
-   - Números + textos curtos (baseados no BRIEFING/Google Meu Negócio, não invente)
-   - Cards com hover lift effect
+Pra dar a sensação de movimento e cuidado que as referências têm, vale investir em:
+scroll reveal nas seções (fade-in + slide-up, cards alternando de lado, números que
+contam até o valor real quando entram na tela), um leve parallax no Hero, hover effects
+com personalidade (sombra que cresce, elemento que sobe, cor que muda, links com
+underline animado), gradientes usando as cores obrigatórias (no Hero, nos botões, até
+em texto), e alguns toques finos — ripple ao clicar, ícone de menu que anima, check
+marks que se desenham em vez de só aparecer. Tipografia editorial (algo como Playfair
+Display nos títulos, Poppins no corpo), respiro generoso entre seções (pense em 60-80px,
+não 20-30px) e sombras suaves que ganham peso no hover completam o acabamento.
 
-✅ SEÇÃO 4: SERVIÇOS/PROCEDIMENTOS
-   - Grid de cards (2-3 colunas), um por serviço real do BRIEFING
-   - Cada card: ícone + título + descrição
-   - Hover: sombra aumenta, sobe 4px, cor muda
-
-✅ SEÇÃO 5: SOBRE/PROFISSIONAL
-   - Layout split: texto esquerda, imagem direita
-   - Tipografia sofisticada (Playfair Display + Poppins)
-   - Line-height 1.8, destaques em bold ou cor primária
-   - VALIDAÇÃO: contraste do texto sobre o fundo/imagem deve ser ≥4.5:1 (bem legível)
-
-✅ SEÇÃO 6: DIFERENCIAIS
-   - 5-6 itens em lista visual, check marks que se desenham ao aparecer (animação
-     de stroke tipo DrawSVG, sem biblioteca externa — só CSS/SVG)
-   - Fundo: cor secundária bem clara ou gradiente sutil
-
-✅ SEÇÃO 7: DEPOIMENTOS/AVALIAÇÕES (CARROSSEL)
-   - Só inclua depoimentos REAIS se existirem no BRIEFING/Google Meu Negócio —
-     NUNCA invente depoimento ou nota de cliente que não esteja lá
-   - Carousel automático (passa a cada 5s), pausa no hover, dots pulsantes + prev/next
-
-✅ SEÇÃO 8: GALERIA DE RESULTADOS
-   - Só com imagens reais fornecidas no BRIEFING (ver seção de imagens acima)
-   - Grid 3x2 ou 2x3, hover zoom leve (1.05x) + shadow
-
-✅ SEÇÃO 9: CTA FINAL (urgência, sem inventar prazo/estoque)
-   - Texto motivacional + botão grande destacado
-
-✅ SEÇÃO 10: CONTATO + GOOGLE MAPS
-   - Mesma regra da seção de mapa acima: só com endereço real do BRIEFING
-   - Telefone/WhatsApp clicáveis, redes sociais reais
-
-✅ FOOTER: links úteis, copyright, botão flutuante WhatsApp fixo na tela
-
-EFEITOS VISUAIS OBRIGATÓRIOS (CSS/JS vanilla, sem bibliotecas externas):
-
-✅ SCROLL REVEAL: fade-in + slide-up ao rolar (IntersectionObserver), cards alternando
-   slide esquerda/direita, números contadores crescendo quando visíveis, delay entre elementos
-
-✅ PARALLAX: hero com imagem se movendo mais lento que o scroll (30-50%)
-
-✅ HOVER EFFECTS: cards (sombra + sobe 4px + cor muda), botões (gradiente + brilho),
-   links (underline animado), ícones (rotate leve ou scale 1.1x)
-
-✅ GRADIENTES: hero diagonal (primária → secundária), botões no hover, títulos com gradient text
-
-✅ MICRO-ANIMAÇÕES: ripple effect ao clicar nos botões, ícone hambúrguer do menu mobile
-   anima ao abrir/fechar, números crescendo de 0 até o valor real quando entram na tela,
-   check marks se desenhando
-
-✅ TIPOGRAFIA: H1/H2 em Playfair Display (serif), body em Poppins, letter-spacing -0.5px
-   em títulos, line-height 1.6-1.8 em parágrafos, pesos 300/400/600/700 (sem 500)
-
-✅ SPACING: padding de seção 60-80px, gaps de grid 24-32px, max-width 1200px,
-   mobile reduz pra 30-40px
-
-✅ SOMBRAS: padrão 0 4px 15px rgba(0,0,0,0.08), hover 0 12px 30px rgba(0,0,0,0.15)
-
-CHECKLIST FINAL:
-1. Mínimo 8-10 seções bem definidas? ✅
-2. Scroll reveal em todas as seções? ✅
-3. Parallax no hero? ✅
-4. Hover effects agressivos? ✅
-5. Gradientes em fundo/botões/texto (com as cores obrigatórias)? ✅
-6. Micro-animações (números, ícones)? ✅
-7. Tipografia Playfair + Poppins? ✅
-8. Spacing generoso (60px+ nas seções)? ✅
-9. Sombras elegantes em cards? ✅
-10. Mobile responsivo? ✅
-11. Nenhuma seção usa dado (depoimento, número, oferta, imagem) que não está no BRIEFING? ✅
-
-Se faltar QUALQUER item de estrutura/efeito = NÃO É SUFICIENTE.
-Se QUALQUER seção usar dado inventado = REFAÇA — prioridade sobre o visual.
+Isso tudo é o TOM que a página deve ter — não uma lista pra marcar item por item. Mas se
+faltar profundidade de estrutura (poucas seções, sem nenhuma animação, sem hierarquia
+visual) ou se qualquer seção usar um dado que não está no BRIEFING, a página não está
+pronta — refaça priorizando primeiro os dados reais, depois o acabamento visual.
 """
 
     sistema_edicao = """
