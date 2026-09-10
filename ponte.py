@@ -1582,61 +1582,23 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     else:
         print("   ⚠️ Push explícito falhou, mas repositório já foi criado e enviado pelo --push do gh")
 
-    # Deploy automático no Vercel. --project usa o mesmo nome_repo do GitHub, pra bater
-    # com a URL https://{nome_repo}.vercel.app usada no polling do preview logo abaixo
-    # e no dashboard do Nevion Hub — sem isso, o Vercel nomearia o projeto sozinho
-    # (baseado na pasta local, sem timestamp) e essa URL nunca responderia.
-    vercel_token = os.environ.get("VERCEL_TOKEN", "")
-    if shutil.which('vercel') is None:
-        print("   ⚠️ Vercel CLI não encontrado no PATH — pulando deploy automático")
-    elif not vercel_token:
-        print("   ⚠️ VERCEL_TOKEN não configurado — pulando deploy automático")
-        print("      Gere um token em https://vercel.com/account/tokens e defina com:")
-        print('      $env:VERCEL_TOKEN = "seu-token-aqui"')
-    else:
-        try:
-            print(f"\n🚀 Fazendo deploy no Vercel: {nome_repo}...")
-            deploy_resultado = subprocess.run(
-                [
-                    "vercel", "deploy", "--prod", "--yes",
-                    "--token", vercel_token,
-                    "--project", nome_repo
-                ],
-                cwd=pasta_projeto,
-                capture_output=True,
-                text=True,
-                timeout=300
-            )
-            if deploy_resultado.returncode == 0:
-                print(f"   ✅ Deploy feito no Vercel! {deploy_resultado.stdout.strip()}")
-            else:
-                print(f"   ⚠️ Deploy automático falhou (deploy manual necessário): {deploy_resultado.stderr.strip()}")
-        except Exception as e:
-            print(f"   ⚠️ Deploy manual necessário (Vercel CLI): {e}")
-
-    # Gerar preview (screenshot) da página — não bloqueia o sucesso do deploy se falhar
-    print("\n▶ Gerando preview da página...")
     url_vercel = f"https://{nome_repo}.vercel.app"
 
-    # Aguarda a página ficar online (até 60s), com espera entre tentativas mesmo
-    # quando o request retorna mas não é 200 (não só em caso de exceção)
+    # Deploy via Vercel CLI por subprocess não funciona de forma confiável neste
+    # ambiente — import manual do repo pelo dashboard é o caminho real. Sem deploy
+    # automático, a página não vai estar no ar neste ponto — então não faz
+    # sentido ficar fazendo polling esperando ela responder. Import é manual (instruções
+    # acima); pagina_online fica False pra pular a fase premium (que depende de página
+    # no ar) e o preview abaixo — a tentativa de screenshot é só um esforço best-effort
+    # que falha graciosamente se a página ainda não tiver sido importada/publicada.
+    print(f"\n⏭️ PRÓXIMO PASSO - Import Manual no Vercel:")
+    print(f"   1. Abre: https://vercel.com/dashboard")
+    print(f"   2. 'Add New' → 'Import Git Repository'")
+    print(f"   3. Procura: {nome_repo}")
+    print(f"   4. 'Import' → 'Deploy'")
+    print(f"   5. Pronto! Página fica online em ~2 minutos")
+    print(f"\n▶ Aguardando você fazer import no Vercel...")
     pagina_online = False
-    for tentativa in range(60):
-        try:
-            response = requests.get(url_vercel, timeout=5)
-            if response.status_code == 200:
-                print("   ✅ Página online!")
-                pagina_online = True
-                break
-        except requests.RequestException:
-            pass
-
-        if tentativa < 59:
-            print(f"   ⏳ Tentativa {tentativa + 1}/60... aguardando página online")
-            time.sleep(1)
-
-    if not pagina_online:
-        print("   ⚠️ Página não respondeu 200 em 60s — tentando screenshot mesmo assim")
 
     screenshot_path = None
     try:
