@@ -718,6 +718,13 @@ SE NÃO TEM IMAGENS ({total_imagens} acima == 0):
 - NÃO gere com IA
 - NÃO use stock photos genéricas
 
+SE ALGUMAS DAS IMAGENS FORNECIDAS parecerem claramente um par antes/depois (mesmo
+enquadramento, nomes de arquivo sequenciais que sugerem isso, ou o BRIEFING menciona
+"antes e depois"): apresente esse par numa seção de transformação lado a lado, em vez
+de jogar as duas soltas na galeria — isso é sobre COMO exibir as imagens já fornecidas,
+NÃO uma licença pra escolher só algumas e descartar o resto. A regra "usar TODAS as
+imagens" continua valendo integralmente.
+
 ✅ CHECKLIST DE IMAGENS (antes de terminar):
 1. Procure por TODAS as tags <img> no index.html
 2. Se há {total_imagens} imagens no briefing e alguma NÃO foi usada = FALHOU TUDO, corrija antes de terminar
