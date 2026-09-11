@@ -1526,21 +1526,78 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
 
     url_vercel = f"https://{nome_repo}.vercel.app"
 
-    # Deploy via Vercel CLI por subprocess não funciona de forma confiável neste
-    # ambiente — import manual do repo pelo dashboard é o caminho real. Sem deploy
-    # automático, a página não vai estar no ar neste ponto — então não faz
-    # sentido ficar fazendo polling esperando ela responder. Import é manual (instruções
-    # acima); pagina_online fica False pra pular a fase premium (que depende de página
-    # no ar) e o preview abaixo — a tentativa de screenshot é só um esforço best-effort
-    # que falha graciosamente se a página ainda não tiver sido importada/publicada.
-    print(f"\n⏭️ PRÓXIMO PASSO - Import Manual no Vercel:")
-    print(f"   1. Abre: https://vercel.com/dashboard")
-    print(f"   2. 'Add New' → 'Import Git Repository'")
-    print(f"   3. Procura: {nome_repo}")
-    print(f"   4. 'Import' → 'Deploy'")
-    print(f"   5. Pronto! Página fica online em ~2 minutos")
-    print(f"\n▶ Aguardando você fazer import no Vercel...")
+    # Deploy automático no Vercel via API REST (a CLI via subprocess não funcionava de
+    # forma confiável neste ambiente). Testado contra a API real: precisa de
+    # skipAutoDetectionConfirmation=1 pra criar o projeto na primeira vez (sem isso ela
+    # recusa com "missing_project_settings"), teamId da conta (obrigatório mesmo em
+    # conta hobby/pessoal quando o token pertence a um team), e gitSource.repoId
+    # NUMÉRICO do GitHub (não aceita "org/repo" como string).
+    vercel_token = os.environ.get('VERCEL_TOKEN')
+    if not vercel_token:
+        print(f"\n⏭️ VERCEL_TOKEN não configurado — import manual necessário:")
+        print(f"   https://vercel.com/dashboard → Import Git Repository → {nome_repo}")
+    else:
+        try:
+            print(f"\n🚀 Fazendo deploy no Vercel: {nome_repo}...")
+
+            repo_info = subprocess.run(
+                ["gh", "api", f"repos/Joa0Zera/{nome_repo}", "--jq", ".id"],
+                capture_output=True, text=True, timeout=30
+            )
+            if repo_info.returncode != 0 or not repo_info.stdout.strip():
+                raise Exception(f"não consegui pegar o repoId do GitHub: {repo_info.stderr.strip()}")
+            repo_id = int(repo_info.stdout.strip())
+
+            user_resp = requests.get(
+                "https://api.vercel.com/v2/user",
+                headers={"Authorization": f"Bearer {vercel_token}"},
+                timeout=15
+            )
+            user_resp.raise_for_status()
+            team_id = user_resp.json()["user"]["defaultTeamId"]
+
+            deploy_resp = requests.post(
+                "https://api.vercel.com/v13/deployments",
+                params={"teamId": team_id, "skipAutoDetectionConfirmation": 1},
+                headers={"Authorization": f"Bearer {vercel_token}"},
+                json={
+                    "name": nome_repo,
+                    "project": nome_repo,
+                    "target": "production",
+                    "gitSource": {"type": "github", "repoId": repo_id, "ref": "master"}
+                },
+                timeout=30
+            )
+
+            if deploy_resp.status_code in (200, 201):
+                print(f"   ✅ Deploy iniciado no Vercel! {url_vercel}")
+            else:
+                print(f"   ⚠️ Deploy automático falhou ({deploy_resp.status_code}): {deploy_resp.text[:300]}")
+                print(f"      Import manual: https://vercel.com/dashboard → Import Git Repository → {nome_repo}")
+        except Exception as e:
+            print(f"   ⚠️ Deploy automático falhou: {e}")
+            print(f"      Import manual: https://vercel.com/dashboard → Import Git Repository → {nome_repo}")
+
+    # O deploy acima é assíncrono (fica "INITIALIZING" por um tempo) — aguarda até 60s
+    # a página responder 200 antes de seguir pro preview/fase premium.
+    print("\n▶ Aguardando a página ficar online...")
     pagina_online = False
+    for tentativa in range(60):
+        try:
+            response = requests.get(url_vercel, timeout=5)
+            if response.status_code == 200:
+                print("   ✅ Página online!")
+                pagina_online = True
+                break
+        except requests.RequestException:
+            pass
+
+        if tentativa < 59:
+            print(f"   ⏳ Tentativa {tentativa + 1}/60... aguardando página online")
+            time.sleep(1)
+
+    if not pagina_online:
+        print("   ⚠️ Página não respondeu 200 em 60s — tentando screenshot mesmo assim")
 
     screenshot_path = None
     try:
