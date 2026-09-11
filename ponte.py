@@ -1532,7 +1532,9 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     # recusa com "missing_project_settings"), teamId da conta (obrigatório mesmo em
     # conta hobby/pessoal quando o token pertence a um team), e gitSource.repoId
     # NUMÉRICO do GitHub (não aceita "org/repo" como string).
+    print(f"\n🚀 Tentando deploy automático via API...")
     vercel_token = os.environ.get('VERCEL_TOKEN')
+    print(f"   VERCEL_TOKEN configurado? {bool(vercel_token)}")
     if not vercel_token:
         print(f"\n⏭️ VERCEL_TOKEN não configurado — import manual necessário:")
         print(f"   https://vercel.com/dashboard → Import Git Repository → {nome_repo}")
