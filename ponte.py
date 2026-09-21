@@ -6,7 +6,7 @@ import base64
 import re
 import unicodedata
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 import sys
 import shutil
 import requests
@@ -1503,6 +1503,109 @@ def git_init_e_push(pasta_projeto, nome_repo, cor_descricao=""):
     return True, "Repositório criado com sucesso", nome_repo
 
 
+def _config_supabase():
+    """
+    Devolve (SUPABASE_URL, SUPABASE_SERVICE_KEY) ou None se faltar algo.
+
+    Lê do ambiente; se faltar, de um arquivo .env ao lado do ponte.py (o .gitignore já
+    cobre .env). Nunca imprime os valores. Exige https:// pra não mandar a chave em texto
+    puro caso a URL esteja errada.
+    """
+    url = os.environ.get("SUPABASE_URL", "").strip()
+    chave = os.environ.get("SUPABASE_SERVICE_KEY", "").strip()
+
+    if not (url and chave):
+        caminho_env = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+        try:
+            with open(caminho_env, encoding="utf-8-sig") as f:
+                for linha in f:
+                    linha = linha.strip()
+                    if not linha or linha.startswith("#") or "=" not in linha:
+                        continue
+                    nome, _, valor = linha.partition("=")
+                    nome, valor = nome.strip(), valor.strip().strip('"').strip("'")
+                    if nome == "SUPABASE_URL" and not url:
+                        url = valor
+                    elif nome == "SUPABASE_SERVICE_KEY" and not chave:
+                        chave = valor
+        except OSError:
+            pass  # sem .env: só o ambiente vale
+
+    if not (url and chave):
+        return None
+
+    if not url.startswith("https://"):
+        print("   ⚠️ SUPABASE_URL precisa começar com https:// — registro em 'paginas' desativado")
+        return None
+
+    return url.rstrip("/"), chave
+
+
+def _briefing_para_supabase(valor, limite=10000):
+    """
+    Cópia do briefing pronta pro json_briefing: strings gigantes (ex.: logo/fotos em
+    base64 que alguns fluxos mandam no topo do JSON) viram um marcador em vez de
+    estufar a linha da tabela.
+    """
+    if isinstance(valor, str):
+        return valor if len(valor) <= limite else f"<omitido: {len(valor)} caracteres>"
+    if isinstance(valor, list):
+        return [_briefing_para_supabase(v, limite) for v in valor]
+    if isinstance(valor, dict):
+        return {k: _briefing_para_supabase(v, limite) for k, v in valor.items()}
+    return valor
+
+
+def registrar_pagina_no_supabase(nome_empresa, nome_repo, url_vercel, briefing):
+    """
+    Grava/atualiza a página na tabela `paginas` do Supabase (é dela que a lista "Páginas
+    Criadas" do nevion-hub lê), pela API REST, com upsert por repo_github.
+
+    NUNCA levanta exceção nem interrompe a criação: a página já foi criada e publicada
+    quando isto roda, então falta de configuração ou falha de rede/Supabase vira só um
+    aviso. Devolve True se gravou e False caso contrário (quem chama ignora).
+    """
+    try:
+        config = _config_supabase()
+        if not config:
+            print("   ⚠️ SUPABASE_URL / SUPABASE_SERVICE_KEY não configurados — página não registrada em 'paginas'")
+            return False
+        url_base, chave = config
+
+        # Sem "id" e sem "criado_em" de propósito: no INSERT o banco usa os defaults, e num
+        # reenvio (upsert) as colunas ausentes ficam intactas — a data original é preservada.
+        linha = {
+            "nome_empresa": nome_empresa or "Sem nome",
+            "repo_github": nome_repo,
+            "url_vercel": url_vercel,
+            "json_briefing": _briefing_para_supabase(briefing),
+            "atualizado_em": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+
+        resposta = requests.post(
+            f"{url_base}/rest/v1/paginas",
+            params={"on_conflict": "repo_github"},
+            headers={
+                "apikey": chave,
+                "Authorization": f"Bearer {chave}",
+                "Content-Type": "application/json",
+                "Prefer": "resolution=merge-duplicates,return=minimal",
+            },
+            json=linha,
+            timeout=10,
+        )
+
+        if resposta.status_code in (200, 201, 204):
+            print(f"   ✅ Página registrada no Supabase (paginas): {nome_repo}")
+            return True
+
+        print(f"   ⚠️ Supabase recusou o registro da página (HTTP {resposta.status_code}): {resposta.text[:200]}")
+        return False
+    except Exception as e:
+        print(f"   ⚠️ Não foi possível registrar a página no Supabase: {type(e).__name__}: {e}")
+        return False
+
+
 class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
@@ -1831,6 +1934,16 @@ class Handler(BaseHTTPRequestHandler):
 
             # URL teórica (Vercel faz auto-deploy via webhook)
             link_vercel = f"https://{nome_repo}.vercel.app"
+
+            # Registra a página na tabela `paginas` do Supabase (é de lá que a lista "Páginas
+            # Criadas" do nevion-hub lê): cobre TODA página criada aqui, venha do nevion-hub,
+            # do n8n ou do LeadEngine. Só avisa se falhar — a página já está criada.
+            # No fallback SSH pro repo compartilhado o código foi pro nevion-automation, então
+            # "nome_repo" não existe como repositório: não registra uma página que não existe.
+            if "repo compartilhado" in msg_git:
+                print("   ⚠️ Página enviada ao repo compartilhado (fallback) — não registrada em 'paginas'")
+            else:
+                registrar_pagina_no_supabase(nome_empresa, nome_repo, link_vercel, briefing)
 
             resposta = {
                 "status": "concluido",
