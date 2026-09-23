@@ -220,7 +220,14 @@ __marimo__/
 # Nevion Automation — dados sensíveis e artefatos gerados localmente
 chrome_perfil_whatsapp/
 contatos.txt
+contatos.txt.backup-antes-sync-real
 disparados.json
+disparados.simulado.bak.json
 extracao_leads.log
 *.csv
 projetos/
+*.bak
+
+# Tem senha do Instagram hardcoded como fallback (INSTAGRAM_PASSWORD) — não versionar até
+# isso ser corrigido pra ler só do ambiente/.env.
+raspar_instagram_login.py
