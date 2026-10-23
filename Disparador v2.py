@@ -52,6 +52,10 @@ FALHOU = "FALHOU"      # com certeza não saiu
 INCERTO = "INCERTO"    # pode ter saído
 # Valor gravado na coluna `status` de public.disparos (e em disparados.json)
 STATUS_REGISTRO = {ENVIADO: "disparado", SEM_WHATSAPP: "sem_whatsapp", INCERTO: "incerto", FALHOU: "falhou"}
+# "erro" que o baileys_v2.js devolve quando recusa por opt-out (400 "optout") ou porque não
+# conseguiu nem ler a lista de opt-out (503 "optout_ilegivel") — os dois caem em FALHOU, mas
+# não são sinal de Baileys/WhatsApp com problema: não devem contar pra MAX_FALHAS_SEGUIDAS.
+ERROS_OPTOUT = {"optout", "optout_ilegivel"}
 # Status provisório, gravado no Supabase ANTES do envio (não é resultado de enviar_via_baileys):
 # fecha a corrida entre a pessoa responder rápido demais e este processo terminar de registrar
 # o disparo — a rota /api/resposta do hub passa a aceitar status IN ('disparado', 'enviando').
@@ -548,28 +552,31 @@ def _corpo_json(resposta):
 
 def _classificar_resposta(resposta):
     """
-    Devolve (status, detalhe) a partir do que o baileys_v2.js responde em POST /enviar:
+    Devolve (status, detalhe, erro) a partir do que o baileys_v2.js responde em POST /enviar:
       200 {ok:true}                envio confirmado (sendMessage devolveu o id)         -> ENVIADO
       404 numero_sem_whatsapp      onWhatsApp disse que o número não existe             -> SEM_WHATSAPP
-      400 json/corpo/numero/mensagem inválidos, 401 token errado, 413 corpo grande,
-      503 sem token / WhatsApp desconectado, 404 rota errada: tudo isso o servidor
-      responde ANTES de chamar sendMessage                                             -> FALHOU
+      400 json/corpo/numero/mensagem inválidos, optout; 401 token errado, 413 corpo
+      grande, 503 sem token / WhatsApp desconectado / optout_ilegivel, 404 rota errada:
+      tudo isso o servidor responde ANTES de chamar sendMessage                         -> FALHOU
       502 falha_no_envio / envio_sem_confirmacao, 504 timeout: o erro veio de dentro de
       onWhatsApp/sendMessage (ou o sendMessage voltou sem id); não dá pra saber se a
       mensagem saiu                                                                    -> INCERTO
       qualquer outro código (proxy, 200 sem ok...): não é uma resposta que o servidor
       dá, então também INCERTO
+    `erro` é o código que o baileys_v2.js mandou no corpo (ex.: "optout", "optout_ilegivel",
+    "numero_sem_whatsapp"...), "" quando não há um (200 ok). Quem chama usa isso pra não
+    contar bloqueio de opt-out como falha de infraestrutura (ver ERROS_OPTOUT).
     """
     codigo = resposta.status_code
     erro = _sanitizar(_corpo_json(resposta).get("erro", ""))[:60]
 
     if codigo == 200 and _corpo_json(resposta).get("ok") is True:
-        return ENVIADO, "HTTP 200"
+        return ENVIADO, "HTTP 200", ""
     if codigo == 404 and erro == "numero_sem_whatsapp":
-        return SEM_WHATSAPP, "HTTP 404 numero_sem_whatsapp"
+        return SEM_WHATSAPP, "HTTP 404 numero_sem_whatsapp", erro
     if codigo in (400, 401, 404, 413, 503):
-        return FALHOU, f"HTTP {codigo} {erro}".strip()
-    return INCERTO, f"HTTP {codigo} {erro}".strip()
+        return FALHOU, f"HTTP {codigo} {erro}".strip(), erro
+    return INCERTO, f"HTTP {codigo} {erro}".strip(), erro
 
 def _nao_conectou(e):
     """True se o ConnectionError foi ao ABRIR a conexão (recusada, host inexistente, timeout de
@@ -582,26 +589,28 @@ def _nao_conectou(e):
     return isinstance(alvo, (NewConnectionError, ConnectTimeoutError))
 
 def _classificar_excecao(e, requisicao_iniciada):
-    """(status, detalhe) para uma exceção durante o envio."""
+    """(status, detalhe, erro) para uma exceção durante o envio. `erro` é sempre "" aqui — não
+    veio um código do servidor, é uma falha de rede/config antes/depois do request."""
     nome = type(e).__name__
     if not requisicao_iniciada or isinstance(e, (ImportError, ErroDeConfiguracao)):
-        return FALHOU, f"{nome} antes de enviar"
+        return FALHOU, f"{nome} antes de enviar", ""
 
     import requests
     erros = requests.exceptions
     if isinstance(e, (erros.InvalidURL, erros.MissingSchema, erros.InvalidSchema)):
-        return FALHOU, f"{nome} (URL do Baileys inválida)"
+        return FALHOU, f"{nome} (URL do Baileys inválida)", ""
     if isinstance(e, erros.ConnectTimeout) or (isinstance(e, erros.ConnectionError) and _nao_conectou(e)):
-        return FALHOU, "conexão não abriu (Baileys parado?) — nada foi enviado"
+        return FALHOU, "conexão não abriu (Baileys parado?) — nada foi enviado", ""
     if isinstance(e, erros.ReadTimeout):
-        return INCERTO, "sem resposta no prazo depois de enviar o request"
-    return INCERTO, f"{nome}: falha depois de enviar o request"
+        return INCERTO, "sem resposta no prazo depois de enviar o request", ""
+    return INCERTO, f"{nome}: falha depois de enviar o request", ""
 
 def enviar_via_baileys(numero, mensagem, cta=None):
     """
     Envia `mensagem` a `numero` pelo Baileys (POST {BAILEYS_URL}/enviar, cabeçalho X-Api-Token).
-    Normaliza o número antes. Devolve (status, detalhe), com status ENVIADO, SEM_WHATSAPP,
-    FALHOU (com certeza não saiu) ou INCERTO (pode ter saído). Nunca reenvia por conta própria.
+    Normaliza o número antes. Devolve (status, detalhe, erro), com status ENVIADO, SEM_WHATSAPP,
+    FALHOU (com certeza não saiu) ou INCERTO (pode ter saído); `erro` é o código específico
+    (ex.: "optout", "optout_ilegivel") ou "" quando não há um. Nunca reenvia por conta própria.
 
     `cta` é opcional e vai junto no corpo: o baileys_v2.js passa a guardar isso em
     enviados.json (mesmo arquivo/momento do registro de envio), pra não depender mais de
@@ -610,7 +619,7 @@ def enviar_via_baileys(numero, mensagem, cta=None):
     """
     normalizado = normalizar_numero(numero)
     if not numero_valido(normalizado):
-        return FALHOU, "numero_invalido (nada foi enviado)"
+        return FALHOU, "numero_invalido (nada foi enviado)", "numero_invalido"
 
     corpo = {"numero": normalizado, "mensagem": mensagem}
     if cta:
@@ -835,6 +844,7 @@ def executar_real(quantidade):
 
     contadores = {ENVIADO: 0, SEM_WHATSAPP: 0, FALHOU: 0, INCERTO: 0}
     falhas_seguidas = 0
+    bloqueados_optout = 0
     motivo = "fila concluída"
     completo = True
     copias = random.sample(COPYS, len(COPYS))
@@ -865,10 +875,10 @@ def executar_real(quantidade):
 
             interrompido = False
             try:
-                status, detalhe = enviar_via_baileys(normalizado, mensagem, copia["cta"])
+                status, detalhe, erro = enviar_via_baileys(normalizado, mensagem, copia["cta"])
             except KeyboardInterrupt:
                 # Ctrl+C com o request no ar: não dá pra saber se saiu.
-                status, detalhe, interrompido = INCERTO, "Ctrl+C durante o envio", True
+                status, detalhe, erro, interrompido = INCERTO, "Ctrl+C durante o envio", "", True
 
             contadores[status] += 1
             gravou_json = salvar_disparado(contato, copia["id"], copia["cta"], STATUS_REGISTRO[status])
@@ -886,8 +896,14 @@ def executar_real(quantidade):
                 motivo, completo = f"não consegui gravar {ARQUIVO_DISPARADOS}", False
                 break
 
-            # SEM_WHATSAPP não conta como falha: o servidor respondeu normalmente.
-            falhas_seguidas = falhas_seguidas + 1 if status == FALHOU else 0
+            if status == FALHOU and erro in ERROS_OPTOUT:
+                bloqueados_optout += 1
+
+            # SEM_WHATSAPP não conta como falha (servidor respondeu normalmente), e bloqueio
+            # de opt-out também não — é o sistema funcionando certo, não Baileys/WhatsApp com
+            # problema.
+            conta_como_falha = status == FALHOU and erro not in ERROS_OPTOUT
+            falhas_seguidas = falhas_seguidas + 1 if conta_como_falha else 0
             if falhas_seguidas >= MAX_FALHAS_SEGUIDAS:
                 motivo, completo = f"{MAX_FALHAS_SEGUIDAS} falhas seguidas (Baileys/WhatsApp com problema?)", False
                 break
@@ -904,6 +920,8 @@ def executar_real(quantidade):
     print("✅ DISPAROS CONCLUÍDOS!" if completo else "⏹️  EXECUÇÃO INTERROMPIDA")
     print(f"📌 Motivo do fim: {motivo}")
     print(f"📊 Enviados: {contadores[ENVIADO]} | sem WhatsApp: {contadores[SEM_WHATSAPP]} | falhas: {contadores[FALHOU]} | incertos: {contadores[INCERTO]}")
+    if bloqueados_optout:
+        print(f"🚫 Bloqueados por opt-out: {bloqueados_optout} (dentro das falhas acima; não contam pro limite de falhas seguidas)")
     if contadores[FALHOU]:
         print("   (as falhas não foram gravadas em disparados.json: serão tentadas na próxima execução)")
     print(f"📋 Variação: {len(COPYS)} copys diferentes")
@@ -932,7 +950,7 @@ def executar_teste(numero):
     copia = random.choice(COPYS)
     print(f"📱 Enviando UMA mensagem de teste para {mascarar(normalizado)} ({copia['nome']}, CTA: {copia['cta']})")
     try:
-        status, detalhe = enviar_via_baileys(normalizado, copia["mensagem"].replace("{nome}", "empresa"), copia["cta"])
+        status, detalhe, _erro = enviar_via_baileys(normalizado, copia["mensagem"].replace("{nome}", "empresa"), copia["cta"])
     except KeyboardInterrupt:
         status, detalhe = INCERTO, "Ctrl+C durante o envio"
 

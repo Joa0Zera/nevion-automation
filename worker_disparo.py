@@ -136,12 +136,13 @@ def marcar_erro(url_base, chave, pedido_id, mensagem):
 
 # ==================== ENVIO (adaptado de disp.executar_real, SEM o prompt) ====================
 
-def _resultado(contadores, motivo):
+def _resultado(contadores, motivo, bloqueados_optout=0):
     return {
         "enviados": contadores[disp.ENVIADO],
         "sem_whatsapp": contadores[disp.SEM_WHATSAPP],
         "falhas": contadores[disp.FALHOU],
         "incertos": contadores[disp.INCERTO],
+        "bloqueados_optout": bloqueados_optout,
         "motivo_fim": motivo,
     }
 
@@ -179,6 +180,7 @@ def processar_pedido(pedido, url_base, chave):
 
     fila = plano["fila"]
     falhas_seguidas = 0
+    bloqueados_optout = 0
     motivo = "fila concluída"
     copias = disp.random.sample(disp.COPYS, len(disp.COPYS))
 
@@ -199,7 +201,7 @@ def processar_pedido(pedido, url_base, chave):
         # registrar o resultado. Só um aviso se falhar (não bloqueia o envio).
         disp.registrar_disparo_no_supabase(contato, copia["id"], copia["cta"], disp.STATUS_ENVIANDO)
 
-        status, detalhe = disp.enviar_via_baileys(normalizado, mensagem, copia["cta"])  # Ctrl+C aqui PROPAGA
+        status, detalhe, erro = disp.enviar_via_baileys(normalizado, mensagem, copia["cta"])  # Ctrl+C aqui PROPAGA
 
         contadores[status] += 1
         gravou_json = disp.salvar_disparado(contato, copia["id"], copia["cta"], disp.STATUS_REGISTRO[status])
@@ -220,8 +222,13 @@ def processar_pedido(pedido, url_base, chave):
             motivo = f"não consegui gravar {disp.ARQUIVO_DISPARADOS}"
             break
 
-        # SEM_WHATSAPP não conta como falha: o servidor respondeu normalmente.
-        falhas_seguidas = falhas_seguidas + 1 if status == disp.FALHOU else 0
+        if status == disp.FALHOU and erro in disp.ERROS_OPTOUT:
+            bloqueados_optout += 1
+
+        # SEM_WHATSAPP não conta como falha (servidor respondeu normalmente), e bloqueio de
+        # opt-out também não — é o sistema funcionando certo, não Baileys/WhatsApp com problema.
+        conta_como_falha = status == disp.FALHOU and erro not in disp.ERROS_OPTOUT
+        falhas_seguidas = falhas_seguidas + 1 if conta_como_falha else 0
         if falhas_seguidas >= disp.MAX_FALHAS_SEGUIDAS:
             motivo = f"{disp.MAX_FALHAS_SEGUIDAS} falhas seguidas (Baileys/WhatsApp com problema?)"
             break
@@ -229,7 +236,7 @@ def processar_pedido(pedido, url_base, chave):
         if i < len(fila) and contadores[disp.ENVIADO] < teto["faltam"]:
             disp.esperar(disp.random.uniform(disp.INTERVALO_MIN_SEGUNDOS, disp.INTERVALO_MAX_SEGUNDOS))
 
-    return _resultado(contadores, motivo)
+    return _resultado(contadores, motivo, bloqueados_optout)
 
 
 # ==================== SUPABASE (public.resposta_pedidos) ====================
@@ -278,7 +285,7 @@ def processar_resposta_pedido(pedido, url_base, chave):
         _marcar_resposta(url_base, chave, pedido["id"], "erro", {"erro_detalhe": disp._sanitizar(motivo)[:500]})
         return
 
-    status, detalhe = disp.enviar_via_baileys(pedido["contato_normalizado"], pedido["texto"])
+    status, detalhe, _erro = disp.enviar_via_baileys(pedido["contato_normalizado"], pedido["texto"])
     if status == disp.ENVIADO:
         disp.registrar_conversa(pedido["contato_normalizado"], "enviada", pedido["texto"])
         _marcar_resposta(url_base, chave, pedido["id"], "enviado", {"enviado_em": _agora_sql()})
