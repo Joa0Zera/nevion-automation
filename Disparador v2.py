@@ -676,13 +676,20 @@ def esperar(segundos):
 def montar_fila(quantidade):
     """
     Contatos que ainda faltam, na ordem do contatos.txt. A comparação é pelo número
-    normalizado (também nas chaves do disparados.json); números que não cabem no formato e
-    repetidos no contatos.txt ficam de fora, e só depois disso `quantidade` corta a fila.
-    Levanta ValueError se o disparados.json existir e não puder ser lido.
+    normalizado (também nas chaves do disparados.json); números que não cabem no formato,
+    repetidos no contatos.txt e quem pediu opt-out ficam de fora, e só depois disso
+    `quantidade` corta a fila.
+    Levanta ValueError se o disparados.json existir e não puder ser lido (também se o
+    optout.json existir e não puder ser lido — ver optout.carregar_optout()).
     Devolve dict (fila = [(contato, normalizado, nome)]) ou None se não há nada a fazer.
     """
+    import optout  # lazy: optout.py reaproveita normalizar_numero deste módulo via importlib;
+    # um import no topo deste arquivo criaria um ciclo (este módulo seria recarregado de novo
+    # dentro de optout.py antes de terminar de se definir).
+
     contatos = carregar_contatos()
     disparados = carregar_disparados()
+    optouts = optout.carregar_optout()
 
     if not contatos:
         print("❌ Nenhum contato encontrado!")
@@ -690,12 +697,14 @@ def montar_fila(quantidade):
 
     ja_disparados = {normalizar_numero(chave) for chave in disparados}
     vistos = set()
-    fila, invalidos, repetidos = [], [], 0
+    fila, invalidos, repetidos, bloqueados_optout = [], [], 0, 0
 
     for contato, nome in contatos:
         normalizado = normalizar_numero(contato)
         if not numero_valido(normalizado):
             invalidos.append(mascarar(contato))
+        elif normalizado in optouts:
+            bloqueados_optout += 1
         elif normalizado in ja_disparados:
             pass
         elif normalizado in vistos:
@@ -706,6 +715,8 @@ def montar_fila(quantidade):
 
     if invalidos:
         print(f"⚠️ {len(invalidos)} número(s) inválido(s) pulado(s) (não cabem em 55 + DDD + número): {', '.join(invalidos)}")
+    if bloqueados_optout:
+        print(f"🚫 {bloqueados_optout} contato(s) pulado(s) por estar em optout")
 
     if not fila:
         print("✓ Todos os contatos já receberam mensagem!")
@@ -718,7 +729,7 @@ def montar_fila(quantidade):
     print(f"📊 Total no contatos.txt: {len(contatos)}")
     print(f"✓ Já processados: {len(ja_disparados)}")
     print(f"📢 Pendentes: {total_pendentes} | nesta execução: {len(fila)}\n")
-    return {"fila": fila, "invalidos": len(invalidos), "repetidos": repetidos}
+    return {"fila": fila, "invalidos": len(invalidos), "repetidos": repetidos, "bloqueados_optout": bloqueados_optout}
 
 def _banner(titulo):
     print("\n" + "="*70)

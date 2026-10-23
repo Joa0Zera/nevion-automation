@@ -21,6 +21,7 @@ import os
 import sys
 
 import leadengine_client as le
+from optout import carregar_optout
 
 PASTA = os.path.dirname(os.path.abspath(__file__))
 
@@ -74,18 +75,24 @@ def _chave_desempate(lead):
 
 def _selecionar_sem_duplicatas(leads_novo):
     """
-    Normaliza, valida e deduplica por telefone. Devolve (vistos, duplicados, invalidos):
-      vistos      {normalizado: lead}      — um por telefone, o de collectedAt mais recente
-      duplicados  int                      — quantas vezes um telefone repetido apareceu
-      invalidos   [str]                    — telefones mascarados que não normalizaram certo
+    Normaliza, valida, filtra quem pediu opt-out e deduplica por telefone. Devolve
+    (vistos, duplicados, invalidos, bloqueados_optout):
+      vistos              {normalizado: lead}      — um por telefone, o de collectedAt mais recente
+      duplicados          int                      — quantas vezes um telefone repetido apareceu
+      invalidos           [str]                    — telefones mascarados que não normalizaram certo
+      bloqueados_optout   int                       — quantos foram pulados por estarem em optout
     """
-    vistos, duplicados, invalidos = {}, 0, []
+    optouts = carregar_optout()
+    vistos, duplicados, invalidos, bloqueados_optout = {}, 0, [], 0
 
     for lead in leads_novo:
         bruto_tel = lead["normalizedPhone"] or lead["phone"]
         normalizado = disp.normalizar_numero(bruto_tel)
         if not disp.numero_valido(normalizado):
             invalidos.append(disp.mascarar(bruto_tel))
+            continue
+        if normalizado in optouts:
+            bloqueados_optout += 1
             continue
 
         atual = vistos.get(normalizado)
@@ -97,7 +104,7 @@ def _selecionar_sem_duplicatas(leads_novo):
         if _chave_desempate(lead) > _chave_desempate(atual):
             vistos[normalizado] = lead  # este é mais recente — substitui
 
-    return vistos, duplicados, invalidos
+    return vistos, duplicados, invalidos, bloqueados_optout
 
 
 def ciclo_unico():
@@ -122,7 +129,7 @@ def ciclo_unico():
         print(f"⚠️ Não consegui consultar public.disparos: {type(e).__name__}: {e}")
         return
 
-    vistos, duplicados, invalidos = _selecionar_sem_duplicatas(leads_novo)
+    vistos, duplicados, invalidos, bloqueados_optout = _selecionar_sem_duplicatas(leads_novo)
     novos = {normalizado: lead for normalizado, lead in vistos.items() if normalizado not in ja_em_disparos}
 
     temporario = ARQUIVO_CONTATOS + ".tmp"
@@ -135,8 +142,8 @@ def ciclo_unico():
     os.replace(temporario, ARQUIVO_CONTATOS)
 
     print(f"[{disp.agora_brasilia().strftime('%d/%m %H:%M')}] LeadEngine: {len(leads_novo)} 'NOVO' | "
-          f"{duplicados} duplicado(s) | {len(invalidos)} inválido(s) | {len(ja_em_disparos)} já em disparos "
-          f"-> {len(novos)} contato(s) gravados em contatos.txt")
+          f"{duplicados} duplicado(s) | {len(invalidos)} inválido(s) | {bloqueados_optout} em optout | "
+          f"{len(ja_em_disparos)} já em disparos -> {len(novos)} contato(s) gravados em contatos.txt")
     if invalidos:
         print(f"   inválidos (mascarados): {', '.join(invalidos)}")
 
