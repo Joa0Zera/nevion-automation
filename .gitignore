@@ -231,3 +231,5 @@ projetos/
 # Tem senha do Instagram hardcoded como fallback (INSTAGRAM_PASSWORD) — não versionar até
 # isso ser corrigido pra ler só do ambiente/.env.
 raspar_instagram_login.py
+
+optout.json
