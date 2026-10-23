@@ -1,16 +1,83 @@
 """
-NEVION - Acesso ao Firestore do LeadEngine via REST puro (sem SDK). Usado por
-sync_leadengine.py (lê leads 'NOVO') e por worker_disparo.py (marca 'CONTATADO' de volta
-depois de um envio bem-sucedido).
+NEVION - Acesso ao Firestore do LeadEngine via REST pura (sem SDK do Firestore — só
+google-auth pra gerar o token da conta de serviço). Usado por sync_leadengine.py (lê leads
+'NOVO') e por worker_disparo.py (marca 'CONTATADO' de volta depois de um envio bem-sucedido).
 
-Hoje funciona sem token porque a coleção `leads` está com read/write públicos no
-firestore.rules do LeadEngine. Se essas regras forem trocadas pra exigir login (proposta em
-aberto, ainda não aplicada), este arquivo precisa ganhar autenticação por conta de serviço —
-o mesmo padrão do server.ts do LeadEngine.
+Projeto: nevion-leadengine, database "(default)" — migrado de collective-silo-q5xj8. As
+regras desse projeto novo exigem autenticação (o antigo tinha read/write públicos): toda
+chamada carrega um token OAuth2 (escopo Datastore) da conta de serviço apontada por
+LEADENGINE_SA_PATH (ambiente ou .env ao lado deste script) ou, na falta dela,
+GOOGLE_APPLICATION_CREDENTIALS. Sem credencial válida, as funções levantam com uma mensagem
+clara — nunca seguem em silêncio como se a chamada tivesse funcionado.
 """
+import os
 import re
 
-FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/collective-silo-q5xj8/databases/ai-studio-380e5510-3d29-4425-ba08-381fb2225e14/documents"
+FIRESTORE_URL = "https://firestore.googleapis.com/v1/projects/nevion-leadengine/databases/(default)/documents"
+ESCOPO_DATASTORE = "https://www.googleapis.com/auth/datastore"
+
+_credenciais = None  # cache em memória: lidas uma vez por processo, token renovado sob demanda
+
+
+def _caminho_credencial():
+    """LEADENGINE_SA_PATH do ambiente, senão do .env ao lado deste script, senão
+    GOOGLE_APPLICATION_CREDENTIALS do ambiente. "" se nenhum dos três estiver definido."""
+    caminho = os.environ.get("LEADENGINE_SA_PATH", "").strip()
+    if caminho:
+        return caminho
+
+    caminho_env = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    try:
+        with open(caminho_env, encoding="utf-8-sig") as f:
+            for linha in f:
+                linha = linha.strip()
+                if not linha or linha.startswith("#") or "=" not in linha:
+                    continue
+                nome, _, valor = linha.partition("=")
+                if nome.strip() == "LEADENGINE_SA_PATH":
+                    valor = valor.strip().strip('"').strip("'")
+                    if valor:
+                        return valor
+    except OSError:
+        pass  # sem .env: só o ambiente vale
+
+    return os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
+
+
+def _token_bearer():
+    """
+    Devolve {"Authorization": "Bearer <token>"} com um token válido da conta de serviço,
+    renovando quando perto de expirar (google-auth cuida disso via `creds.valid`). LEVANTA
+    RuntimeError com mensagem clara se faltar a credencial, o arquivo não existir ou não for
+    uma conta de serviço válida — nunca segue sem credencial como se desse pra falar com o
+    Firestore (isso mandaria a chamada sem Authorization, e o novo projeto recusaria mesmo
+    assim — mas de um jeito confuso, não com uma mensagem que diz o que realmente falta).
+    """
+    global _credenciais
+
+    if _credenciais is None:
+        caminho = _caminho_credencial()
+        if not caminho:
+            raise RuntimeError(
+                "LEADENGINE_SA_PATH (ambiente ou .env) / GOOGLE_APPLICATION_CREDENTIALS não "
+                "configurados — sem credencial não dá pra falar com o Firestore do LeadEngine."
+            )
+        if not os.path.exists(caminho):
+            raise RuntimeError(f"LEADENGINE_SA_PATH aponta pra um arquivo que não existe: {caminho}")
+        try:
+            from google.oauth2 import service_account
+        except ImportError as e:
+            raise RuntimeError("biblioteca google-auth não instalada (pip install google-auth)") from e
+        try:
+            _credenciais = service_account.Credentials.from_service_account_file(caminho, scopes=[ESCOPO_DATASTORE])
+        except Exception as e:
+            raise RuntimeError(f"LEADENGINE_SA_PATH não é uma conta de serviço válida ({type(e).__name__})") from e
+
+    if not _credenciais.valid:
+        import google.auth.transport.requests
+        _credenciais.refresh(google.auth.transport.requests.Request())
+
+    return {"Authorization": f"Bearer {_credenciais.token}"}
 
 
 def _valor_campo(campo):
@@ -27,7 +94,7 @@ def buscar_leads_novo():
     """
     Leads com status == 'NOVO'. Traz só os campos usados (phone, normalizedPhone,
     collectedAt, name) — o resto do documento (endereço, notas, e-mail...) não trafega.
-    Levanta em caso de falha de rede/HTTP; quem chama decide o que fazer.
+    Levanta em caso de falta de credencial ou falha de rede/HTTP; quem chama decide o que fazer.
     """
     import requests
 
@@ -42,7 +109,7 @@ def buscar_leads_novo():
             "limit": 2000,
         }
     }
-    resposta = requests.post(f"{FIRESTORE_URL}:runQuery", json=corpo, timeout=30)
+    resposta = requests.post(f"{FIRESTORE_URL}:runQuery", json=corpo, headers=_token_bearer(), timeout=30)
     resposta.raise_for_status()
 
     leads = []
@@ -65,7 +132,8 @@ def _buscar_lead_id_por_telefone(telefone):
     """
     Acha o id do documento 'leads/{id}' pelo telefone — mesma ordem de busca do
     dbFindLeadByPhone (firebase.ts do LeadEngine): phone exato (formatado com '+'), depois
-    normalizedPhone. None se não achar em nenhum dos dois. Levanta em caso de falha de rede.
+    normalizedPhone. None se não achar em nenhum dos dois. Levanta em caso de falta de
+    credencial ou falha de rede.
     """
     import requests
 
@@ -77,7 +145,7 @@ def _buscar_lead_id_por_telefone(telefone):
             "where": {"fieldFilter": {"field": {"fieldPath": campo}, "op": "EQUAL", "value": {"stringValue": valor}}},
             "limit": 1,
         }}
-        resposta = requests.post(f"{FIRESTORE_URL}:runQuery", json=corpo, timeout=15)
+        resposta = requests.post(f"{FIRESTORE_URL}:runQuery", json=corpo, headers=_token_bearer(), timeout=15)
         resposta.raise_for_status()
         for item in resposta.json():
             doc = item.get("document")
@@ -93,7 +161,8 @@ def marcar_contatado_no_leadengine(telefone):
     NUNCA levanta: o disparo já foi registrado no Supabase antes desta chamada (ver
     worker_disparo.py) — isto é só um espelho de volta pro LeadEngine, e uma falha aqui não
     pode derrubar o envio nem o worker. Devolve True se achou e marcou, False caso contrário
-    (não encontrado, ou qualquer falha — sempre com um aviso no console).
+    (não encontrado, credencial ausente/invalida, ou qualquer outra falha — sempre com um
+    aviso CLARO no console, nunca em silêncio).
     """
     try:
         import requests
@@ -106,9 +175,10 @@ def marcar_contatado_no_leadengine(telefone):
             f"{FIRESTORE_URL}/leads/{lead_id}",
             params={"updateMask.fieldPaths": "status"},
             json={"fields": {"status": {"stringValue": "CONTATADO"}}},
+            headers=_token_bearer(),
             timeout=15,
         )
         return resposta.status_code == 200
     except Exception as e:
-        print(f"   ⚠️ Não consegui marcar CONTATADO no LeadEngine: {type(e).__name__}")
+        print(f"   ⚠️ Não consegui marcar CONTATADO no LeadEngine: {type(e).__name__}: {e}")
         return False
