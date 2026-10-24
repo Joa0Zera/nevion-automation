@@ -19,7 +19,10 @@ try:
     from raspar_instagram_login import raspar_e_converter
     INSTAGRAM_DISPONIVEL = True
     print("✅ Módulo raspar_instagram carregado!")
-except ImportError as e:
+except (ImportError, SystemExit) as e:
+    # raspar_instagram_login.py chama SystemExit (não ImportError) quando INSTAGRAM_PASSWORD
+    # não está configurada — sem pegar SystemExit aqui, isso derrubava o processo inteiro do
+    # ponte.py no import, em vez de só desligar esta etapa opcional (ver raspar_e_adicionar_imagens).
     INSTAGRAM_DISPONIVEL = False
     print(f"⚠️ Erro ao importar: {e}")
 
