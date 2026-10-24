@@ -390,12 +390,44 @@ FAMILIAS_COR = {
 }
 
 
+def _config_leadengine_token():
+    """
+    LEADENGINE_API_TOKEN do ambiente, senão do .env ao lado deste script (mesmo padrão de
+    _config_supabase). "" se não estiver em nenhum dos dois — nunca escrito no código.
+    """
+    token = os.environ.get("LEADENGINE_API_TOKEN", "").strip()
+    if token:
+        return token
+
+    caminho_env = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    try:
+        with open(caminho_env, encoding="utf-8-sig") as f:
+            for linha in f:
+                linha = linha.strip()
+                if not linha or linha.startswith("#") or "=" not in linha:
+                    continue
+                nome, _, valor = linha.partition("=")
+                if nome.strip() == "LEADENGINE_API_TOKEN":
+                    valor = valor.strip().strip('"').strip("'")
+                    if valor:
+                        return valor
+    except OSError:
+        pass  # sem .env: só o ambiente vale
+
+    return ""
+
+
 def buscar_lead_no_leadengine(telefone: str) -> dict:
     """
     Busca um lead no LeadEngine pelo telefone.
     Retorna os dados completos do Google Meu Negócio.
     """
     if not telefone:
+        return {}
+
+    token = _config_leadengine_token()
+    if not token:
+        print("   ⚠️ LEADENGINE_API_TOKEN não configurado (ambiente ou .env) — busca de lead pulada, seguindo sem lead")
         return {}
 
     try:
@@ -415,6 +447,7 @@ def buscar_lead_no_leadengine(telefone: str) -> dict:
         response = requests.get(
             'https://leadengine-public.onrender.com/api/lead-by-phone',
             params={'phone': telefone_formatado},
+            headers={'X-Api-Token': token},
             timeout=10
         )
 
@@ -422,6 +455,12 @@ def buscar_lead_no_leadengine(telefone: str) -> dict:
             lead = response.json()
             print(f"   ✅ Lead encontrado: {lead.get('name', 'Sem nome')}")
             return lead
+        elif response.status_code == 401:
+            print("   ❌ LeadEngine recusou o token (HTTP 401) — LEADENGINE_API_TOKEN errado ou revogado")
+            return {}
+        elif response.status_code == 503:
+            print("   ⚠️ LeadEngine indisponível (HTTP 503) — tente de novo mais tarde")
+            return {}
         else:
             print(f"   ⚠️ Lead não encontrado (status {response.status_code})")
             return {}
