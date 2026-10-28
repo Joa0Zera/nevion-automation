@@ -13,7 +13,7 @@ dashboard. Ao terminar (sucesso ou parada estrutural: teto atingido, INCERTO, fa
 seguidas, janela fechou no meio) grava 'concluido' com o resultado. Uma exceção não
 prevista grava 'erro' com só o tipo e a mensagem (sem stack trace, sem número completo).
 
-JANELA DE HORÁRIO (segunda a sexta, 9h-18h): se o worker acha um pedido 'pendente' fora da
+JANELA DE HORÁRIO (segunda a sexta, 8h-20h): se o worker acha um pedido 'pendente' fora da
 janela, ele NÃO marca 'executando' — deixa 'pendente' e tenta de novo no próximo ciclo, até
 WORKER_JANELA_PRAZO_HORAS (padrão 72h, ~um fim de semana) contados da criação do pedido.
 Passado isso sem a janela abrir, cancela com 'erro' explicando o motivo.
@@ -54,7 +54,7 @@ _spec.loader.exec_module(disp)  # só definições (funções/constantes) — o 
 
 CICLO_PADRAO_SEGUNDOS = 20
 CICLO_RESPOSTA_PADRAO_SEGUNDOS = 10  # mais rápido de propósito: não pode esperar atrás de um lote longo
-LIMITE_JANELA_PADRAO_HORAS = 72  # sobrevive a um fim de semana normal (sex 18h -> seg 9h ~= 63h)
+LIMITE_JANELA_PADRAO_HORAS = 72  # sobrevive a um fim de semana normal (sex 20h -> seg 8h ~= 60h)
 TABELA_PEDIDOS = "disparo_pedidos"
 TABELA_RESPOSTAS = "resposta_pedidos"
 
@@ -346,8 +346,8 @@ def ciclo_unico(url_base, chave, limite_janela_horas):
         print(f"❌ Pedido #{pedido['id']} passou de {limite_janela_horas}h fora da janela — cancelando.")
         try:
             marcar_erro(url_base, chave, pedido["id"],
-                        f"Fora da janela de envio (seg-sex 9h-18h) por mais de {limite_janela_horas}h "
-                        f"— cancelado automaticamente")
+                        f"Fora da janela de envio (seg-sex {disp.JANELA_INICIO_HORA}h-{disp.JANELA_FIM_HORA}h) "
+                        f"por mais de {limite_janela_horas}h — cancelado automaticamente")
         except Exception as e:
             print(f"⚠️  Também não consegui marcar o pedido #{pedido['id']} como erro: {type(e).__name__}: {e}")
         _ultimo_aviso_janela.pop(pedido["id"], None)

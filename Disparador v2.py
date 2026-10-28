@@ -35,8 +35,8 @@ TIMEOUT_PRETESTE_SEGUNDOS = 10
 
 # Limites de disparo
 BRASILIA = timezone(timedelta(hours=-3))  # UTC-3 fixo (sem horário de verão), dispensa tzdata
-JANELA_INICIO_HORA = 9                    # segunda a sexta, das 9h às 18h (18h já é fora)
-JANELA_FIM_HORA = 18
+JANELA_INICIO_HORA = 8                     # segunda a sexta, das 8h às 20h (20h já é fora)
+JANELA_FIM_HORA = 20
 INTERVALO_MIN_SEGUNDOS = 90               # espera uniforme entre mensagens
 INTERVALO_MAX_SEGUNDOS = 240
 ESPERA_PEDACO_SEGUNDOS = 1.0              # a espera é fatiada pra o Ctrl+C responder logo
@@ -177,7 +177,7 @@ def agora_brasilia():
     return agora_utc().astimezone(BRASILIA)
 
 def dentro_da_janela(momento):
-    """`momento` em horário de Brasília. Segunda a sexta, das 9h (inclusive) às 18h (exclusive)."""
+    """`momento` em horário de Brasília. Segunda a sexta, das 8h (inclusive) às 20h (exclusive)."""
     return momento.weekday() < 5 and JANELA_INICIO_HORA <= momento.hour < JANELA_FIM_HORA
 
 def _descrever_momento(momento):
