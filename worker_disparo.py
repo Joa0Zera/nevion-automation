@@ -62,6 +62,57 @@ TABELA_RESPOSTAS = "resposta_pedidos"
 # por até 72h seguidas — no máximo 1 vez a cada 30 min por pedido.
 _ultimo_aviso_janela = {}
 
+# ==================== SINAL DE VIDA (public.worker_status) ====================
+# O Hub lê esta tabela para mostrar na tela "Hoje" se o worker está vivo e em que fase está.
+# Gravar o sinal NUNCA pode derrubar o worker: qualquer falha só vira uma linha de log.
+TABELA_STATUS = "worker_status"
+NOME_WORKER = "disparo"
+FASE_AGUARDANDO = "aguardando_pedido"
+FASE_ENVIANDO = "enviando"
+FASE_FORA_DA_JANELA = "fora_da_janela"
+FASE_ERRO = "erro"
+ERRO_PERSISTE_SEGUNDOS = 300  # depois de um erro, a fase 'erro' continua por 5 min (ou até o próximo pedido rodar)
+
+_estado_sinal = {"fase": FASE_AGUARDANDO, "detalhe": None, "erro_em": None, "processando": False}
+
+def gravar_status(url_base, chave, fase, detalhe=None):
+    """Upsert da linha `disparo` em worker_status. Devolve True se gravou; nunca levanta."""
+    _estado_sinal["fase"], _estado_sinal["detalhe"] = fase, detalhe
+    try:
+        import requests
+
+        agora = _agora_sql()
+        resposta = requests.post(
+            f"{url_base}/rest/v1/{TABELA_STATUS}",
+            params={"on_conflict": "nome"},
+            json={"nome": NOME_WORKER, "ultimo_sinal": agora, "fase": fase, "detalhe": detalhe, "atualizado_em": agora},
+            headers=_headers(chave, {"Prefer": "resolution=merge-duplicates,return=minimal"}),
+            timeout=5,
+        )
+        resposta.raise_for_status()
+        return True
+    except Exception as e:
+        print(f"⚠️  Não consegui gravar o sinal de vida em {TABELA_STATUS}: {type(e).__name__}: {disp._sanitizar(str(e))[:160]}")
+        return False
+
+def _fase_ociosa():
+    """Fase quando não há nada em andamento: 'erro' enquanto um erro recente ainda vale, senão aguardando."""
+    erro_em = _estado_sinal["erro_em"]
+    if erro_em is not None and (time.monotonic() - erro_em) < ERRO_PERSISTE_SEGUNDOS:
+        return FASE_ERRO, _estado_sinal["detalhe"]
+    return FASE_AGUARDANDO, None
+
+def _resumo_erro(mensagem):
+    return disp._sanitizar(str(mensagem)).replace("\n", " ")[:120]
+
+def rodar_batimento(url_base, chave, ciclo_segundos, parar_evento):
+    """Thread de fundo: enquanto um pedido está sendo enviado (o laço principal fica preso nele por
+    minutos), repete o sinal 'enviando' para o worker não parecer parado. Fora disso não grava nada."""
+    while not parar_evento.is_set():
+        parar_evento.wait(ciclo_segundos)
+        if _estado_sinal["processando"] and not parar_evento.is_set():
+            gravar_status(url_base, chave, _estado_sinal["fase"], _estado_sinal["detalhe"])
+
 
 # ==================== SUPABASE (public.disparo_pedidos) ====================
 
@@ -320,6 +371,13 @@ def rodar_loop_respostas(url_base, chave, ciclo_segundos, parar_evento):
 def ciclo_unico(url_base, chave, limite_janela_horas):
     """Uma verificação do loop principal. Nunca levanta, exceto KeyboardInterrupt (que sobe
     de propósito, sem marcar nada, deixando o pedido 'executando' como está)."""
+    # Sinal de vida deste ciclo (fase decidida antes de consultar pedidos; 'enviando' vem depois,
+    # quando um pedido é de fato pego).
+    if not disp.dentro_da_janela(disp.agora_brasilia()):
+        gravar_status(url_base, chave, FASE_FORA_DA_JANELA)
+    else:
+        gravar_status(url_base, chave, *_fase_ociosa())
+
     try:
         pedido = buscar_pedido_pendente(url_base, chave)
     except Exception as e:
@@ -364,19 +422,27 @@ def ciclo_unico(url_base, chave, limite_janela_horas):
     _ultimo_aviso_janela.pop(pedido["id"], None)
 
     print(f"▶️  Pedido #{pedido['id']} — {pedido['quantidade']} contato(s) — iniciando envio real...")
+    gravar_status(url_base, chave, FASE_ENVIANDO, f"pedido #{pedido['id']}")
+    _estado_sinal["processando"] = True
     try:
         resultado = processar_pedido(pedido, url_base, chave)
     except KeyboardInterrupt:
         raise  # NÃO marca nada — o pedido fica 'executando' de propósito (ver docstring do módulo)
     except Exception as e:
         mensagem = f"{type(e).__name__}: {e}"
+        if isinstance(e, disp.ErroDeConfiguracao) and "pré-teste do Baileys" in mensagem:
+            _estado_sinal["erro_em"] = time.monotonic()
+            gravar_status(url_base, chave, FASE_ERRO, _resumo_erro(mensagem))
         print(f"❌ Erro no pedido #{pedido['id']}: {disp._sanitizar(mensagem)}")
         try:
             marcar_erro(url_base, chave, pedido["id"], mensagem)
         except Exception as e2:
             print(f"⚠️  Também não consegui gravar o erro do pedido #{pedido['id']}: {type(e2).__name__}: {e2}")
         return
+    finally:
+        _estado_sinal["processando"] = False
 
+    _estado_sinal["erro_em"] = None  # um pedido rodou até o fim: o erro anterior (se havia) ficou para trás
     print(f"✅ Pedido #{pedido['id']} concluído: {resultado}")
     try:
         marcar_concluido(url_base, chave, pedido["id"], resultado)
@@ -399,6 +465,10 @@ def rodar_loop(ciclo_segundos, limite_janela_horas, max_ciclos=None):
           f"(prazo na janela: {limite_janela_horas}h). Ctrl+C pra encerrar.\n")
 
     ciclos = 0
+    parar_batimento = threading.Event()
+    if max_ciclos is None:  # uso real; os testes (max_ciclos) não ganham thread de fundo
+        threading.Thread(target=rodar_batimento, args=(url_base, chave, ciclo_segundos, parar_batimento),
+                         daemon=True, name="worker-batimento").start()
     try:
         while max_ciclos is None or ciclos < max_ciclos:
             ciclo_unico(url_base, chave, limite_janela_horas)
@@ -410,6 +480,8 @@ def rodar_loop(ciclo_segundos, limite_janela_horas, max_ciclos=None):
               "assim — sem TTL nem retomada automática. Cancele pelo botão do dashboard ou "
               "reinicie o worker depois de decidir manualmente o que fazer com ele.")
         return 130
+    finally:
+        parar_batimento.set()
     return 0
 
 def main():
