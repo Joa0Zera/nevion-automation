@@ -334,10 +334,29 @@ def carregar_contatos():
 
 # ==================== SUPABASE (public.disparos) ====================
 
-def registrar_disparo_no_supabase(contato, copy_id, cta, status):
+def _normalizar_nome_disparo(nome):
+    """
+    Normaliza `nome` (o campo `name` do LeadEngine, repassado via contatos.txt/montar_fila —
+    nunca uma nova consulta) pra gravar em disparos.nome. Tira espaço do início/fim e limita a
+    120 caracteres. Devolve None (não grava nada) se vazio, nulo, só espaço, ou o
+    placeholder genérico "Lead" que o LeadEngine às vezes manda quando não tem nome de verdade.
+    """
+    if not nome:
+        return None
+    limpo = nome.strip()
+    if not limpo or limpo == "Lead":
+        return None
+    return limpo[:120]
+
+def registrar_disparo_no_supabase(contato, copy_id, cta, status, nome=None):
     """
     Grava/atualiza o disparo na tabela `disparos` do Supabase, pela API REST, com upsert
     por contato_normalizado (o mesmo número em outro formato cai na mesma linha).
+
+    `nome` (opcional) é o nome do lead/clínica — só entra no corpo da requisição quando
+    normaliza pra algo não-nulo (ver _normalizar_nome_disparo). Por estar AUSENTE do corpo
+    quando não há nome, o upsert (merge-duplicates) nunca apaga um `nome` já gravado numa
+    linha existente — mesmo mecanismo que já protege `disparado_em` num reenvio.
 
     NUNCA levanta exceção nem interrompe o disparo: falta de configuração ou falha de
     rede/Supabase vira só um aviso. Devolve True se gravou e False caso contrário.
@@ -366,6 +385,9 @@ def registrar_disparo_no_supabase(contato, copy_id, cta, status):
         }
         if status != STATUS_REGISTRO[FALHOU]:
             linha["disparado_em"] = agora.strftime("%Y-%m-%dT%H:%M:%SZ")
+        nome_normalizado = _normalizar_nome_disparo(nome)
+        if nome_normalizado is not None:
+            linha["nome"] = nome_normalizado
 
         resposta = requests.post(
             f"{url_base}/rest/v1/disparos",
@@ -389,14 +411,16 @@ def registrar_disparo_no_supabase(contato, copy_id, cta, status):
         print(f"   ⚠️ Não foi possível registrar o disparo no Supabase: {type(e).__name__}: {_sanitizar(e)}")
         return False
 
-def salvar_disparado(contato, copy_id, cta, status):
+def salvar_disparado(contato, copy_id, cta, status, nome=None):
     """
     Registra o resultado de um envio. `status` é o valor de STATUS_REGISTRO: 'disparado',
     'sem_whatsapp', 'incerto' ou 'falhou'.
 
     disparados.json recebe tudo MENOS 'falhou' (quem falhou de certeza é tentado de novo na
-    próxima execução); o Supabase recebe sempre. Devolve False só se o disparados.json não pôde
-    ser gravado — quem chama deve parar, senão o contato seria reenviado.
+    próxima execução); o Supabase recebe sempre. `nome` (opcional) só vai pro Supabase
+    (disparos.nome, via registrar_disparo_no_supabase) — NÃO entra em disparados.json, que
+    mantém o formato de sempre. Devolve False só se o disparados.json não pôde ser gravado —
+    quem chama deve parar, senão o contato seria reenviado.
     """
     gravou_json = True
 
@@ -421,7 +445,7 @@ def salvar_disparado(contato, copy_id, cta, status):
             gravou_json = False
 
     # Espelha no Supabase (tabela `disparos`). Só avisa se falhar.
-    registrar_disparo_no_supabase(contato, copy_id, cta, status)
+    registrar_disparo_no_supabase(contato, copy_id, cta, status, nome)
     return gravou_json
 
 def registrar_conversa(contato_normalizado, direcao, texto):
