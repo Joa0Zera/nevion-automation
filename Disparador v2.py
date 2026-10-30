@@ -19,6 +19,7 @@ import sys
 import time
 import json
 import random
+import unicodedata
 import argparse
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
@@ -128,6 +129,58 @@ Bora eu te mandar um modelo de como ficaria pra vocês?""",
         "tipo": "aberta"
     }
 ]
+
+# ---------- cópias por nicho ----------
+# Cada nicho tem o seu conjunto de cópias de abertura (a mesma rotação de quatro, embaralhada por pedido,
+# dentro de cada conjunto). A chave do nicho vem do 3º campo do contatos.txt (category do LeadEngine):
+# nicho vazio, "Outros", "Não especificado" ou qualquer um que não seja destes três usa as cópias de clínica
+# (COPYS, acima). Um nicho conhecido cujo conjunto ainda está vazio também cai nas cópias de clínica, com
+# um aviso — cole aqui os textos aprovados (id, nome, mensagem com {nome}, cta "", tipo "aberta").
+COPYS_POR_NICHO = {
+    "personal_trainer": [],
+    "barbearia": [],
+    "manicure_lash": [],
+}
+_PALAVRAS_DO_NICHO = (
+    ("personal_trainer", ("personal", "trainer", "treinador")),
+    ("barbearia", ("barbear", "barber")),
+    ("manicure_lash", ("manicure", "lash", "cilio", "unha", "nail")),
+)
+
+def chave_do_nicho(nicho):
+    """'Personal Trainer' / 'Barbearia do Zé' / 'Manicure e Lash' -> personal_trainer / barbearia /
+    manicure_lash (sem acento, sem diferenciar maiúsculas; também aceita a própria chave). None se não for
+    nenhum dos três (inclui vazio, 'Outros' e 'Não especificado')."""
+    if not nicho:
+        return None
+    texto = unicodedata.normalize("NFD", str(nicho)).encode("ascii", "ignore").decode("ascii").lower().replace("_", " ")
+    for chave, palavras in _PALAVRAS_DO_NICHO:
+        if chave.replace("_", " ") in texto or any(p in texto for p in palavras):
+            return chave
+    return None
+
+def novo_seletor_de_copias():
+    """Devolve escolher(nicho) -> cópia. A rotação é por conjunto: cada conjunto (clínica, personal_trainer,
+    barbearia, manicure_lash) é embaralhado uma vez, na primeira vez em que é usado, e percorrido em ordem
+    circular, sem depender dos contatos dos outros nichos no meio da fila."""
+    estado = {}
+    avisados = set()
+
+    def escolher(nicho):
+        chave = chave_do_nicho(nicho)
+        conjunto = COPYS_POR_NICHO.get(chave) if chave else None
+        if not conjunto:
+            if chave and chave not in avisados:
+                avisados.add(chave)
+                print(f"   ⚠️ Nicho '{chave}' sem cópias aprovadas — usando as cópias de clínica")
+            chave, conjunto = "clinica", COPYS
+        if chave not in estado:
+            estado[chave] = [random.sample(conjunto, len(conjunto)), 0]
+        embaralhadas, usadas = estado[chave]
+        estado[chave][1] = usadas + 1
+        return embaralhadas[usadas % len(embaralhadas)]
+
+    return escolher
 
 class ErroDeConfiguracao(Exception):
     """Configuração ausente ou inválida (a mensagem já é própria pra mostrar)."""
@@ -860,10 +913,10 @@ def executar_ensaio(quantidade):
     print(f"   Janela: segunda a sexta, {JANELA_INICIO_HORA}h às {JANELA_FIM_HORA}h")
     print(f"📈 Teto: no máximo {teto_maximo} envios em qualquer janela de 24 horas (checado de verdade só no modo real)\n")
 
-    copias = random.sample(COPYS, len(COPYS))
+    escolher_copia = novo_seletor_de_copias()
     fila = plano["fila"]
     for i, (contato, normalizado, nome, nicho) in enumerate(fila, 1):
-        copia = copias[(i - 1) % len(copias)]
+        copia = escolher_copia(nicho)
         espera = f" | espera depois: {random.uniform(INTERVALO_MIN_SEGUNDOS, INTERVALO_MAX_SEGUNDOS):.0f}s" if i < len(fila) else ""
         print(f"[{i}/{len(fila)}] {mascarar(normalizado)} | {copia['id']} ({copia['nome']}) | CTA: {copia['cta']}{espera}")
 
@@ -945,7 +998,7 @@ def executar_real(quantidade):
     bloqueados_optout = 0
     motivo = "fila concluída"
     completo = True
-    copias = random.sample(COPYS, len(COPYS))
+    escolher_copia = novo_seletor_de_copias()
 
     try:
         for i, (contato, normalizado, nome, nicho) in enumerate(fila, 1):
@@ -960,7 +1013,7 @@ def executar_real(quantidade):
                 motivo, completo = "a janela de horário fechou", False
                 break
 
-            copia = copias[(i - 1) % len(copias)]
+            copia = escolher_copia(nicho)
             mensagem = copia["mensagem"].replace("{nome}", limpar_nome(nome) or "empresa")
             hora = datetime.now().strftime('%H:%M:%S')
             print(f"[{hora}] [{i}/{len(fila)}] 📱 Enviando para {mascarar(normalizado)} ({copia['nome']}, CTA: {copia['cta']})")

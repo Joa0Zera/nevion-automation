@@ -251,7 +251,7 @@ def processar_pedido(pedido, url_base, chave):
     falhas_seguidas = 0
     bloqueados_optout = 0
     motivo = "fila concluída"
-    copias = disp.random.sample(disp.COPYS, len(disp.COPYS))
+    escolher_copia = disp.novo_seletor_de_copias()   # conjunto de cópias pelo nicho do contato
 
     for i, (contato, normalizado, nome, nicho) in enumerate(fila, 1):
         parar = _motivo_limite_24h(teto_maximo)   # antes de CADA contato: o 41º nunca sai
@@ -262,7 +262,7 @@ def processar_pedido(pedido, url_base, chave):
             motivo = "a janela de horário fechou no meio da execução"
             break
 
-        copia = copias[(i - 1) % len(copias)]
+        copia = escolher_copia(nicho)
         mensagem = copia["mensagem"].replace("{nome}", disp.limpar_nome(nome) or "empresa")
         print(f"    [{i}/{len(fila)}] Enviando para {disp.mascarar(normalizado)} ({copia['id']}, CTA: {copia['cta']})")
 
