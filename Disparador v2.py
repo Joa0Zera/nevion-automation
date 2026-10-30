@@ -410,18 +410,28 @@ def registrar_disparo_no_supabase(contato, copy_id, cta, status, nome=None, nich
         if nicho_normalizado is not None:
             linha["nicho"] = nicho_normalizado
 
-        resposta = requests.post(
-            f"{url_base}/rest/v1/disparos",
-            params={"on_conflict": "contato_normalizado"},
-            headers={
-                "apikey": chave,
-                "Authorization": f"Bearer {chave}",
-                "Content-Type": "application/json",
-                "Prefer": "resolution=merge-duplicates,return=minimal",
-            },
-            json=linha,
-            timeout=10,
-        )
+        def gravar(corpo):
+            return requests.post(
+                f"{url_base}/rest/v1/disparos",
+                params={"on_conflict": "contato_normalizado"},
+                headers={
+                    "apikey": chave,
+                    "Authorization": f"Bearer {chave}",
+                    "Content-Type": "application/json",
+                    "Prefer": "resolution=merge-duplicates,return=minimal",
+                },
+                json=corpo,
+                timeout=10,
+            )
+
+        resposta = gravar(linha)
+
+        # Coluna disparos.nicho ainda não criada (migrations/disparos_nicho.sql não aplicada): sem esta
+        # volta o registro inteiro seria recusado, e o limite de 24h (que conta linhas de disparos) ficaria
+        # cego. Grava de novo SEM o nicho e avisa; depois da migração o nicho volta a ser gravado sozinho.
+        if resposta.status_code == 400 and "nicho" in linha and "nicho" in (resposta.text or ""):
+            print("   ⚠️ disparos.nicho não existe ainda (rode migrations/disparos_nicho.sql) — registrando sem o nicho")
+            resposta = gravar({k: v for k, v in linha.items() if k != "nicho"})
 
         if resposta.status_code in (200, 201, 204):
             return True

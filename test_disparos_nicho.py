@@ -103,5 +103,59 @@ class TestProcessarPedidoPassaNicho(Base):
         self.assertEqual(len(self.req.chamadas), 2)
 
 
+class RequestsSemColunaNicho(RequestsFalso):
+    """Postgres/PostgREST sem a coluna: 400 quando o corpo traz 'nicho'; aceita sem ele."""
+    def post(self, url, **kw):
+        self.chamadas.append((url, kw))
+        r = mock.Mock()
+        if "nicho" in kw["json"]:
+            r.status_code = 400
+            r.text = '{"code":"42703","message":"column disparos.nicho does not exist"}'
+        else:
+            r.status_code = 201
+            r.text = ""
+        r.raise_for_status.return_value = None
+        return r
+
+
+class TestColunaNichoAindaNaoCriada(unittest.TestCase):
+    """Antes da migração o registro do disparo não pode ser perdido: o limite de 24h conta linhas de disparos."""
+
+    def test_sem_a_coluna_regrava_sem_nicho_e_devolve_true(self):
+        req = RequestsSemColunaNicho()
+        with mock.patch.dict(sys.modules, {"requests": req}), \
+             mock.patch.object(w.disp, "_config_supabase", return_value=(URL, CHAVE)):
+            ok = w.disp.registrar_disparo_no_supabase(NUMERO, "copy_01", "", "disparado", "Clínica Bella Pele", "barbearia")
+        self.assertTrue(ok)
+        self.assertEqual(len(req.chamadas), 2)
+        self.assertIn("nicho", req.chamadas[0][1]["json"])
+        regravado = req.chamadas[1][1]["json"]
+        self.assertNotIn("nicho", regravado)
+        self.assertEqual(regravado["nome"], "Clínica Bella Pele")
+        self.assertEqual(regravado["status"], "disparado")
+
+    def test_com_a_coluna_grava_uma_vez_so_com_o_nicho(self):
+        req = RequestsFalso()
+        with mock.patch.dict(sys.modules, {"requests": req}), \
+             mock.patch.object(w.disp, "_config_supabase", return_value=(URL, CHAVE)):
+            self.assertTrue(w.disp.registrar_disparo_no_supabase(NUMERO, "copy_01", "", "disparado", None, "barbearia"))
+        self.assertEqual(len(req.chamadas), 1)
+        self.assertEqual(req.chamadas[0][1]["json"]["nicho"], "barbearia")
+
+    def test_outro_erro_400_nao_e_regravado(self):
+        class Recusa(RequestsFalso):
+            def post(self, url, **kw):
+                self.chamadas.append((url, kw))
+                r = mock.Mock()
+                r.status_code = 400
+                r.text = '{"message":"valor invalido para status"}'
+                return r
+        req = Recusa()
+        with mock.patch.dict(sys.modules, {"requests": req}), \
+             mock.patch.object(w.disp, "_config_supabase", return_value=(URL, CHAVE)):
+            self.assertFalse(w.disp.registrar_disparo_no_supabase(NUMERO, "copy_01", "", "disparado", None, "barbearia"))
+        self.assertEqual(len(req.chamadas), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
