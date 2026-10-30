@@ -17,6 +17,7 @@ Configuração (ambiente ou .env ao lado deste script — mesmo padrão do Dispa
   SYNC_CICLO_MINUTOS                    intervalo entre ciclos em minutos (padrão 60)
 """
 import importlib.util
+import json
 import os
 import sys
 
@@ -37,6 +38,7 @@ CICLO_PADRAO_MINUTOS = 60
 # trabalho), de propósito: NÃO é os.path.join(PASTA, ...). Um caminho absoluto aqui ignoraria
 # qualquer isolamento por cwd em teste e escreveria sempre na pasta real do script.
 ARQUIVO_CONTATOS = "contatos.txt"
+ARQUIVO_RESUMO = "leadengine_resumo.json"
 
 
 def buscar_contatos_ja_em_disparos(url_base, chave):
@@ -107,6 +109,22 @@ def _selecionar_sem_duplicatas(leads_novo):
     return vistos, duplicados, invalidos, bloqueados_optout
 
 
+def _gravar_resumo(por_status, novo_sem_telefone_valido):
+    """Grava leadengine_resumo.json de forma atômica (arquivo temporário + os.replace), pro
+    Hub mostrar os números do LeadEngine na aba Hoje. Nunca levanta: quem chama decide o que
+    fazer com uma falha (só avisar e seguir, sem derrubar o ciclo)."""
+    resumo = {
+        "atualizado_em": disp.agora_brasilia().isoformat(),
+        "total": sum(por_status.values()),
+        "por_status": por_status,
+        "novo_sem_telefone_valido": novo_sem_telefone_valido,
+    }
+    temporario = ARQUIVO_RESUMO + ".tmp"
+    with open(temporario, "w", encoding="utf-8") as f:
+        json.dump(resumo, f, ensure_ascii=False, indent=2)
+    os.replace(temporario, ARQUIVO_RESUMO)
+
+
 def ciclo_unico():
     """Uma verificação do loop. Nunca levanta: qualquer falha vira só um aviso, e o
     contatos.txt só é reescrito se os dois lados (LeadEngine e Supabase) responderam —
@@ -146,6 +164,12 @@ def ciclo_unico():
           f"{len(ja_em_disparos)} já em disparos -> {len(novos)} contato(s) gravados em contatos.txt")
     if invalidos:
         print(f"   inválidos (mascarados): {', '.join(invalidos)}")
+
+    try:
+        por_status = le.contar_leads_por_status()
+        _gravar_resumo(por_status, len(invalidos))
+    except Exception as e:
+        print(f"⚠️ Não consegui gravar {ARQUIVO_RESUMO}: {type(e).__name__}: {e}")
 
 
 def rodar_loop(ciclo_minutos, max_ciclos=None):

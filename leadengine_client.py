@@ -128,6 +128,38 @@ def buscar_leads_novo():
     return leads
 
 
+STATUS_LEADENGINE = ("CONTATADO", "NAO_RESPONDEU", "NOVO", "DEMONSTROU_INTERESSE", "PERDIDO", "FECHADO")
+
+
+def contar_leads_por_status():
+    """
+    Quantos leads existem em cada status conhecido, via COUNT agregado no Firestore
+    (runAggregationQuery) — nunca traz os documentos, só o total de cada status. Levanta em
+    caso de falta de credencial ou falha de rede/HTTP; quem chama decide o que fazer.
+    """
+    import requests
+
+    contagens = {}
+    for status in STATUS_LEADENGINE:
+        corpo = {
+            "structuredAggregationQuery": {
+                "structuredQuery": {
+                    "from": [{"collectionId": "leads"}],
+                    "where": {"fieldFilter": {
+                        "field": {"fieldPath": "status"}, "op": "EQUAL", "value": {"stringValue": status},
+                    }},
+                },
+                "aggregations": [{"alias": "total", "count": {}}],
+            }
+        }
+        resposta = requests.post(f"{FIRESTORE_URL}:runAggregationQuery", json=corpo, headers=_token_bearer(), timeout=30)
+        resposta.raise_for_status()
+        resultado = resposta.json()
+        valor = resultado[0]["result"].get("aggregateFields", {}).get("total", {}).get("integerValue", "0")
+        contagens[status] = int(valor)
+    return contagens
+
+
 def _buscar_lead_id_por_telefone(telefone):
     """
     Acha o id do documento 'leads/{id}' pelo telefone — mesma ordem de busca do
