@@ -354,15 +354,27 @@ def _normalizar_nome_disparo(nome):
         return None
     return limpo[:120]
 
-def registrar_disparo_no_supabase(contato, copy_id, cta, status, nome=None):
+def _normalizar_nicho_disparo(nicho):
+    """
+    Normaliza `nicho` (o campo `category` do LeadEngine, repassado via contatos.txt/
+    montar_fila — nunca uma nova consulta) pra gravar em disparos.nicho. Tira espaço do
+    início/fim e limita a 60 caracteres. Devolve None (não grava nada) se vazio ou nulo.
+    """
+    if not nicho:
+        return None
+    limpo = nicho.strip()
+    return limpo[:60] if limpo else None
+
+def registrar_disparo_no_supabase(contato, copy_id, cta, status, nome=None, nicho=None):
     """
     Grava/atualiza o disparo na tabela `disparos` do Supabase, pela API REST, com upsert
     por contato_normalizado (o mesmo número em outro formato cai na mesma linha).
 
-    `nome` (opcional) é o nome do lead/clínica — só entra no corpo da requisição quando
-    normaliza pra algo não-nulo (ver _normalizar_nome_disparo). Por estar AUSENTE do corpo
-    quando não há nome, o upsert (merge-duplicates) nunca apaga um `nome` já gravado numa
-    linha existente — mesmo mecanismo que já protege `disparado_em` num reenvio.
+    `nome` (opcional) é o nome do lead/clínica e `nicho` (opcional) é o nicho do contato
+    (ver COPYS_POR_NICHO) — cada um só entra no corpo da requisição quando normaliza pra algo
+    não-nulo (ver _normalizar_nome_disparo/_normalizar_nicho_disparo). Por estarem AUSENTES do
+    corpo quando vazios, o upsert (merge-duplicates) nunca apaga um valor já gravado numa linha
+    existente — mesmo mecanismo que já protege `disparado_em` num reenvio.
 
     NUNCA levanta exceção nem interrompe o disparo: falta de configuração ou falha de
     rede/Supabase vira só um aviso. Devolve True se gravou e False caso contrário.
@@ -394,6 +406,9 @@ def registrar_disparo_no_supabase(contato, copy_id, cta, status, nome=None):
         nome_normalizado = _normalizar_nome_disparo(nome)
         if nome_normalizado is not None:
             linha["nome"] = nome_normalizado
+        nicho_normalizado = _normalizar_nicho_disparo(nicho)
+        if nicho_normalizado is not None:
+            linha["nicho"] = nicho_normalizado
 
         resposta = requests.post(
             f"{url_base}/rest/v1/disparos",
@@ -417,16 +432,16 @@ def registrar_disparo_no_supabase(contato, copy_id, cta, status, nome=None):
         print(f"   ⚠️ Não foi possível registrar o disparo no Supabase: {type(e).__name__}: {_sanitizar(e)}")
         return False
 
-def salvar_disparado(contato, copy_id, cta, status, nome=None):
+def salvar_disparado(contato, copy_id, cta, status, nome=None, nicho=None):
     """
     Registra o resultado de um envio. `status` é o valor de STATUS_REGISTRO: 'disparado',
     'sem_whatsapp', 'incerto' ou 'falhou'.
 
     disparados.json recebe tudo MENOS 'falhou' (quem falhou de certeza é tentado de novo na
-    próxima execução); o Supabase recebe sempre. `nome` (opcional) só vai pro Supabase
-    (disparos.nome, via registrar_disparo_no_supabase) — NÃO entra em disparados.json, que
-    mantém o formato de sempre. Devolve False só se o disparados.json não pôde ser gravado —
-    quem chama deve parar, senão o contato seria reenviado.
+    próxima execução); o Supabase recebe sempre. `nome`/`nicho` (opcionais) só vão pro Supabase
+    (disparos.nome/disparos.nicho, via registrar_disparo_no_supabase) — NÃO entram em
+    disparados.json, que mantém o formato de sempre. Devolve False só se o disparados.json não
+    pôde ser gravado — quem chama deve parar, senão o contato seria reenviado.
     """
     gravou_json = True
 
@@ -451,7 +466,7 @@ def salvar_disparado(contato, copy_id, cta, status, nome=None):
             gravou_json = False
 
     # Espelha no Supabase (tabela `disparos`). Só avisa se falhar.
-    registrar_disparo_no_supabase(contato, copy_id, cta, status, nome)
+    registrar_disparo_no_supabase(contato, copy_id, cta, status, nome, nicho)
     return gravou_json
 
 def registrar_conversa(contato_normalizado, direcao, texto):
@@ -948,7 +963,7 @@ def executar_real(quantidade):
             # Limitação conhecida, não corrigida agora: se o processo for interrompido (Ctrl+C,
             # queda) depois desta gravação e antes do envio/registro final concluir, a linha
             # fica travada em 'enviando' — sem TTL nem limpeza automática ainda.
-            registrar_disparo_no_supabase(contato, copia["id"], copia["cta"], STATUS_ENVIANDO)
+            registrar_disparo_no_supabase(contato, copia["id"], copia["cta"], STATUS_ENVIANDO, nicho=nicho)
 
             interrompido = False
             try:
@@ -958,7 +973,7 @@ def executar_real(quantidade):
                 status, detalhe, erro, interrompido = INCERTO, "Ctrl+C durante o envio", "", True
 
             contadores[status] += 1
-            gravou_json = salvar_disparado(contato, copia["id"], copia["cta"], STATUS_REGISTRO[status])
+            gravou_json = salvar_disparado(contato, copia["id"], copia["cta"], STATUS_REGISTRO[status], nicho=nicho)
             if status == ENVIADO:
                 registrar_conversa(normalizado, "enviada", mensagem)
             icone = {ENVIADO: "✓", SEM_WHATSAPP: "∅", FALHOU: "✗", INCERTO: "❓"}[status]

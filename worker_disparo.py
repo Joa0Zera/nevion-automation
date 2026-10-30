@@ -269,12 +269,12 @@ def processar_pedido(pedido, url_base, chave):
         # Mesma corrida documentada em executar_real(): grava 'enviando' ANTES do envio,
         # pra fechar a janela entre a pessoa responder rápido e este processo terminar de
         # registrar o resultado. Só um aviso se falhar (não bloqueia o envio).
-        disp.registrar_disparo_no_supabase(contato, copia["id"], copia["cta"], disp.STATUS_ENVIANDO, nome)
+        disp.registrar_disparo_no_supabase(contato, copia["id"], copia["cta"], disp.STATUS_ENVIANDO, nome, nicho)
 
         status, detalhe, erro = disp.enviar_via_baileys(normalizado, mensagem, copia["cta"])  # Ctrl+C aqui PROPAGA
 
         contadores[status] += 1
-        gravou_json = disp.salvar_disparado(contato, copia["id"], copia["cta"], disp.STATUS_REGISTRO[status], nome)
+        gravou_json = disp.salvar_disparado(contato, copia["id"], copia["cta"], disp.STATUS_REGISTRO[status], nome, nicho)
         print(f"        -> {status} ({detalhe})")
 
         # Espelha de volta pro LeadEngine (status='CONTATADO') e pro histórico de conversa
