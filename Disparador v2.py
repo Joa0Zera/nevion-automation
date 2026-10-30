@@ -137,9 +137,96 @@ Bora eu te mandar um modelo de como ficaria pra vocês?""",
 # (COPYS, acima). Um nicho conhecido cujo conjunto ainda está vazio também cai nas cópias de clínica, com
 # um aviso — cole aqui os textos aprovados (id, nome, mensagem com {nome}, cta "", tipo "aberta").
 COPYS_POR_NICHO = {
-    "personal_trainer": [],
-    "barbearia": [],
-    "manicure_lash": [],
+    "personal_trainer": [
+        {
+            "id": "personal_trainer_01",
+            "nome": "Quem Cuida",
+            "mensagem": "Oi {nome}, tudo bem? Vi seu trabalho com treino. Quem cuida do seu site ou da sua presença online hoje, você mesmo?",
+            "cta": "",
+            "tipo": "aberta"
+        },
+        {
+            "id": "personal_trainer_02",
+            "nome": "Entrega Rápida",
+            "mensagem": "{nome}, faço sites para personal trainers com entrega no mesmo dia, depois da confirmação. Quem decide sobre isso aí é você?",
+            "cta": "",
+            "tipo": "aberta"
+        },
+        {
+            "id": "personal_trainer_03",
+            "nome": "Só Instagram",
+            "mensagem": "Oi {nome}! Muitos personais recebem contato só pelo Instagram. Vocês têm um site com link de agendamento ou só a bio?",
+            "cta": "",
+            "tipo": "aberta"
+        },
+        {
+            "id": "personal_trainer_04",
+            "nome": "Antes da Proposta",
+            "mensagem": "{nome}, antes de qualquer proposta: você tem interesse em um site próprio para atrair alunos? Se sim, para quando?",
+            "cta": "",
+            "tipo": "aberta"
+        },
+    ],
+    "barbearia": [
+        {
+            "id": "barbearia_01",
+            "nome": "Quem Cuida",
+            "mensagem": "Oi {nome}, tudo bem? Vi a barbearia no Google. Quem cuida do site e do agendamento de vocês hoje?",
+            "cta": "",
+            "tipo": "aberta"
+        },
+        {
+            "id": "barbearia_02",
+            "nome": "Entrega Rápida",
+            "mensagem": "{nome}, faço sites para barbearias com entrega no mesmo dia, depois da confirmação. Você é quem decide sobre isso?",
+            "cta": "",
+            "tipo": "aberta"
+        },
+        {
+            "id": "barbearia_03",
+            "nome": "Busca no Google",
+            "mensagem": "Oi {nome}! Muita gente procura barbearia no Google antes de ir. Vocês têm site ou só o Instagram?",
+            "cta": "",
+            "tipo": "aberta"
+        },
+        {
+            "id": "barbearia_04",
+            "nome": "Antes da Proposta",
+            "mensagem": "{nome}, antes de qualquer proposta: você tem interesse em um site com agendamento online? Para quando seria?",
+            "cta": "",
+            "tipo": "aberta"
+        },
+    ],
+    "manicure_lash": [
+        {
+            "id": "manicure_lash_01",
+            "nome": "Quem Cuida",
+            "mensagem": "Oi {nome}, tudo bem? Vi seu trabalho no Instagram. Quem cuida do seu site e do agendamento hoje, você?",
+            "cta": "",
+            "tipo": "aberta"
+        },
+        {
+            "id": "manicure_lash_02",
+            "nome": "Entrega Rápida",
+            "mensagem": "{nome}, faço sites para manicures e lash designers com entrega no mesmo dia, depois da confirmação. Quem decide sobre isso é você?",
+            "cta": "",
+            "tipo": "aberta"
+        },
+        {
+            "id": "manicure_lash_03",
+            "nome": "Só no Direct",
+            "mensagem": "Oi {nome}! Sua agenda ainda depende só do direct? Posso deixar isso mais organizado, se fizer sentido.",
+            "cta": "",
+            "tipo": "aberta"
+        },
+        {
+            "id": "manicure_lash_04",
+            "nome": "Interesse Direto",
+            "mensagem": "{nome}, você tem interesse em um site próprio para receber agendamentos? Se sim, para quando?",
+            "cta": "",
+            "tipo": "aberta"
+        },
+    ],
 }
 _PALAVRAS_DO_NICHO = (
     ("personal_trainer", ("personal", "trainer", "treinador")),
