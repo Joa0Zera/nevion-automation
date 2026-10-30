@@ -187,7 +187,9 @@ def _descrever_momento(momento):
     return f"{dia} {momento.strftime('%d/%m %H:%M')} (Brasília)"
 
 def teto_aquecimento(dia):
-    """Teto do aquecimento pra `dia` (dias corridos desde o primeiro disparo; 0 = primeiro dia)."""
+    """OBSOLETO: não usado pelo --real desde o teto deslizante de 24h; só existe hoje porque
+    calcular_teto (também obsoleto) ainda chama. Teto do aquecimento pra `dia` (dias corridos
+    desde o primeiro disparo; 0 = primeiro dia)."""
     for ultimo_dia, teto in AQUECIMENTO:
         if dia <= ultimo_dia:
             return teto
@@ -547,8 +549,25 @@ def envios_na_janela(agora=None):
         raise SupabaseIndisponivel("data do envio mais antigo ilegível") from e
     return len(linhas), mais_antigo
 
+def _motivo_limite_24h(limite):
+    """None se ainda cabe um envio; senão o motivo de parar. Conta disparado/enviando/incerto nas
+    últimas 24 h (UTC). Se a contagem falhar, NÃO envia (falha fechada). Mesma lógica usada pelo
+    worker (worker_disparo.py), replicada aqui porque este módulo é importado por ele (circular
+    demais pra importar de volta)."""
+    try:
+        enviados, mais_antigo = envios_na_janela()
+    except SupabaseIndisponivel:
+        return "não foi possível verificar o limite de 24h"
+    if enviados < limite:
+        return None
+    libera = (mais_antigo + timedelta(hours=JANELA_ENVIOS_HORAS)).astimezone(BRASILIA).strftime("%d/%m %H:%M")
+    return f"limite de {limite} envios em 24h atingido; libera em {libera}"
+
 def calcular_teto(agora, teto_maximo):
     """
+    OBSOLETO: não usado pelo --real desde o teto deslizante de 24h (ver _motivo_limite_24h).
+    Mantido aqui sem uso real, só por compatibilidade com quem ainda importar esta função.
+
     Teto do dia, lendo public.disparos (linhas com status 'disparado'). `agora` em horário de
     Brasília. Levanta SupabaseIndisponivel se não der pra verificar (falha fechada).
 
@@ -861,15 +880,17 @@ def executar_real(quantidade):
         return 0
 
     try:
-        teto = calcular_teto(agora, teto_maximo)
+        enviados_na_janela_agora, _ = envios_na_janela()
     except SupabaseIndisponivel as e:
-        print(f"❌ Não consegui verificar o teto do dia no Supabase ({e}).")
+        print(f"❌ Não consegui verificar o limite de 24h no Supabase ({e}).")
         print("   Sem essa checagem eu não envio nada.")
         return 1
 
-    if teto["faltam"] <= 0:
-        print(f"✋ Teto do dia atingido: {teto['enviados_hoje']}/{teto['teto']} enviados hoje. Nada a fazer.")
+    motivo_limite = _motivo_limite_24h(teto_maximo)
+    if motivo_limite:
+        print(f"✋ {motivo_limite}. Nada a fazer.")
         return 0
+    faltam = max(0, teto_maximo - enviados_na_janela_agora)
 
     ok, mensagem = pre_teste_baileys()
     if not ok:
@@ -878,12 +899,12 @@ def executar_real(quantidade):
     print(f"✓ Pré-teste do Baileys: {mensagem}\n")
 
     fila = plano["fila"]
-    a_enviar = min(len(fila), teto["faltam"])
+    a_enviar = min(len(fila), faltam)
     partes_url = urlparse(url)
     print("📋 PLANO")
     print(f"   Contatos na fila: {len(fila)} (envia no máximo {a_enviar}: os que faltam pro teto)")
-    print(f"   Teto de hoje: {teto['teto']} (aquecimento dia {teto['dia']}: {teto['teto_aquecimento']}; DISPARO_TETO_MAX: {teto_maximo})"
-          f" — enviados hoje: {teto['enviados_hoje']} — faltam: {teto['faltam']}")
+    print(f"   Teto deslizante: {teto_maximo} envios em qualquer janela de {JANELA_ENVIOS_HORAS}h"
+          f" — enviados na janela: {enviados_na_janela_agora} — faltam: {faltam}")
     print(f"   Horário: {_descrever_momento(agora)}; envia só de seg a sex, {JANELA_INICIO_HORA}h–{JANELA_FIM_HORA}h, e para se a janela fechar")
     print(f"   Intervalo: {INTERVALO_MIN_SEGUNDOS}–{INTERVALO_MAX_SEGUNDOS}s entre mensagens (~{a_enviar * (INTERVALO_MIN_SEGUNDOS + INTERVALO_MAX_SEGUNDOS) // 2 // 60} min no total)")
     print(f"   Baileys: {partes_url.scheme}://{partes_url.netloc}\n")
@@ -901,8 +922,9 @@ def executar_real(quantidade):
 
     try:
         for i, (contato, normalizado, nome) in enumerate(fila, 1):
-            if contadores[ENVIADO] >= teto["faltam"]:
-                motivo, completo = "teto do dia atingido", True
+            motivo_limite = _motivo_limite_24h(teto_maximo)   # antes de CADA contato: o 41º nunca sai
+            if motivo_limite:
+                motivo, completo = motivo_limite, True
                 break
             if not dentro_da_janela(agora_brasilia()):
                 motivo, completo = "a janela de horário fechou", False
@@ -958,7 +980,7 @@ def executar_real(quantidade):
                 motivo, completo = f"{MAX_FALHAS_SEGUIDAS} falhas seguidas (Baileys/WhatsApp com problema?)", False
                 break
 
-            if i < len(fila) and contadores[ENVIADO] < teto["faltam"]:
+            if i < len(fila):
                 intervalo = random.uniform(INTERVALO_MIN_SEGUNDOS, INTERVALO_MAX_SEGUNDOS)
                 print(f"        ⏳ próxima em {intervalo:.0f}s\n")
                 esperar(intervalo)
