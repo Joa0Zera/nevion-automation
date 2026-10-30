@@ -831,7 +831,7 @@ def executar_ensaio(quantidade):
     situacao_janela = "dentro da janela" if dentro_da_janela(agora) else "FORA da janela (o modo real não enviaria agora)"
     print(f"🕒 Agora: {_descrever_momento(agora)} — {situacao_janela}")
     print(f"   Janela: segunda a sexta, {JANELA_INICIO_HORA}h às {JANELA_FIM_HORA}h")
-    print(f"📈 Teto do dia: é lido do Supabase só no modo real (aquecimento 5→30 por dia, limitado por DISPARO_TETO_MAX={teto_maximo})\n")
+    print(f"📈 Teto: no máximo {teto_maximo} envios em qualquer janela de 24 horas (checado de verdade só no modo real)\n")
 
     copias = random.sample(COPYS, len(COPYS))
     fila = plano["fila"]
@@ -924,7 +924,10 @@ def executar_real(quantidade):
         for i, (contato, normalizado, nome) in enumerate(fila, 1):
             motivo_limite = _motivo_limite_24h(teto_maximo)   # antes de CADA contato: o 41º nunca sai
             if motivo_limite:
-                motivo, completo = motivo_limite, True
+                motivo = motivo_limite
+                # Atingir o limite é um fim esperado (como o worker, que marca esses pedidos
+                # como 'concluido'); não dar pra verificar é uma falha de execução de verdade.
+                completo = motivo_limite != "não foi possível verificar o limite de 24h"
                 break
             if not dentro_da_janela(agora_brasilia()):
                 motivo, completo = "a janela de horário fechou", False

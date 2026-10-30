@@ -86,6 +86,44 @@ class TestExecutarRealSegueOTetoDeslizante(unittest.TestCase):
         entrada.assert_called_once()
         self.assertEqual(enviar.call_count, len(FILA))
 
+    def test_falha_na_verificacao_no_meio_do_laco_nao_mostra_concluido(self):
+        """Quando _motivo_limite_24h falha (SupabaseIndisponivel) DENTRO do laço (depois de já
+        ter enviado pro menos um contato), o resumo não pode dizer 'DISPAROS CONCLUÍDOS!' nem
+        devolver 0 — isso é uma falha de execução, diferente de atingir o teto de verdade."""
+        chamadas = {"n": 0}
+
+        def instavel(limite):
+            chamadas["n"] += 1
+            # 1ª: antes de pedir confirmação; 2ª: antes do 1º contato (ok); 3ª: antes do 2º (falha)
+            if chamadas["n"] >= 3:
+                return "não foi possível verificar o limite de 24h"
+            return None
+
+        req = RequestsFalso([])
+        with mock.patch.dict(sys.modules, {"requests": req}), \
+             mock.patch.object(disp, "_config_supabase", return_value=(URL, CHAVE)), \
+             mock.patch.object(disp, "_config_baileys", return_value=("http://x", "tok")), \
+             mock.patch.object(disp, "_teto_maximo", return_value=40), \
+             mock.patch.object(disp, "montar_fila", return_value={"fila": FILA}), \
+             mock.patch.object(disp, "agora_brasilia", return_value=AGORA_BRASILIA), \
+             mock.patch.object(disp, "envios_na_janela", return_value=(0, None)), \
+             mock.patch.object(disp, "dentro_da_janela", return_value=True), \
+             mock.patch.object(disp, "pre_teste_baileys", return_value=(True, "ok")), \
+             mock.patch.object(disp, "_motivo_limite_24h", side_effect=instavel), \
+             mock.patch.object(disp, "enviar_via_baileys", return_value=(disp.ENVIADO, "HTTP 200", "")) as enviar, \
+             mock.patch.object(disp, "esperar"), \
+             mock.patch.object(disp, "registrar_conversa"), \
+             mock.patch("builtins.input", return_value="ENVIAR"), \
+             mock.patch("builtins.print") as impressao:
+            codigo = disp.executar_real(len(FILA))
+
+        textos = " ".join(str(a) for chamada in impressao.call_args_list for a in chamada.args)
+        self.assertNotIn("DISPAROS CONCLUÍDOS", textos)
+        self.assertIn("EXECUÇÃO INTERROMPIDA", textos)
+        self.assertIn("não foi possível verificar o limite de 24h", textos)
+        self.assertEqual(enviar.call_count, 1)  # só o 1º contato foi tentado
+        self.assertEqual(codigo, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
