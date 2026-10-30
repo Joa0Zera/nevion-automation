@@ -57,6 +57,7 @@ CICLO_RESPOSTA_PADRAO_SEGUNDOS = 10  # mais rápido de propósito: não pode esp
 LIMITE_JANELA_PADRAO_HORAS = 72  # sobrevive a um fim de semana normal (sex 20h -> seg 8h ~= 60h)
 TABELA_PEDIDOS = "disparo_pedidos"
 TABELA_RESPOSTAS = "resposta_pedidos"
+ARQUIVO_LOCK = "worker_disparo.lock"
 
 # pedido_id -> último aviso (time.monotonic()): evita logar "fora da janela" a cada ciclo
 # por até 72h seguidas — no máximo 1 vez a cada 30 min por pedido.
@@ -502,7 +503,40 @@ def rodar_loop(ciclo_segundos, limite_janela_horas, max_ciclos=None):
         parar_batimento.set()
     return 0
 
+# ==================== TRAVA CONTRA DUAS INSTÂNCIAS ====================
+
+def adquirir_trava_unica():
+    """
+    Trava exclusiva e não bloqueante em ARQUIVO_LOCK (msvcrt.locking — Windows), pra impedir
+    duas instâncias do worker rodando ao mesmo tempo. Devolve o handle do arquivo (aberto,
+    pra manter a trava pelo resto da execução) se conseguiu, ou None se outra instância já
+    está rodando. Quem chama decide o que fazer com None (não levanta).
+
+    O arquivo é só um "cadeado": nunca é apagado (mesmo com a trava liberada), e o Windows
+    libera a trava sozinho quando o processo termina ou cai — sem lock fantasma sobrevivendo
+    a um crash, diferente de um PID file que precisaria ser checado/limpo manualmente.
+    """
+    import msvcrt
+
+    arquivo = open(os.path.join(PASTA, ARQUIVO_LOCK), "a+")
+    arquivo.seek(0)
+    try:
+        msvcrt.locking(arquivo.fileno(), msvcrt.LK_NBLCK, 1)
+    except OSError:
+        arquivo.close()
+        return None
+    return arquivo
+
+
 def main():
+    # Antes de tudo: só uma instância do worker por vez (duas rodando ao mesmo tempo
+    # disputariam o mesmo pedido/janela/teto). O arquivo fica aberto no retorno de main()
+    # (variável local `trava`, viva enquanto o processo roda dentro de rodar_loop()).
+    trava = adquirir_trava_unica()
+    if trava is None:
+        print("❌ Outra instância do worker já está rodando. Saindo.")
+        return 3
+
     # Sem isso, saída redirecionada no Windows (cp1252) quebra nos emojis (mesmo ajuste do Disparador v2.py).
     for fluxo in (sys.stdout, sys.stderr):
         if hasattr(fluxo, "reconfigure"):
