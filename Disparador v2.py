@@ -314,9 +314,11 @@ def carregar_disparados():
 
 def carregar_contatos():
     """
-    Carrega lista de contatos do arquivo. Cada linha é "telefone" (formato antigo) ou
-    "telefone;nome" (novo — nome da empresa depois do ";"). Devolve [(contato, nome)];
-    nome vem "" quando a linha não tem ";" — quem usa decide o fallback pro '{nome}'.
+    Carrega lista de contatos do arquivo. Cada linha é "telefone" (formato antigo),
+    "telefone;nome" (nome da empresa depois do ";") ou "telefone;nome;nicho" (o nicho depois
+    do 2º ";" — usado pra escolher o conjunto de cópias; ver COPYS_POR_NICHO). Devolve
+    [(contato, nome, nicho)]; nome/nicho vêm "" quando a linha não tem esse campo — quem usa
+    decide o fallback (pro '{nome}' e pro conjunto de cópias, respectivamente).
     """
     if not os.path.exists(ARQUIVO_CONTATOS):
         print(f"❌ Arquivo {ARQUIVO_CONTATOS} não encontrado!")
@@ -328,11 +330,11 @@ def carregar_contatos():
             linha = linha.strip()
             if not linha:
                 continue
-            if ";" in linha:
-                telefone, _, nome = linha.partition(";")
-                contatos.append((telefone.strip(), nome.strip()))
-            else:
-                contatos.append((linha, ""))
+            partes = linha.split(";", 2)
+            telefone = partes[0].strip()
+            nome = partes[1].strip() if len(partes) > 1 else ""
+            nicho = partes[2].strip() if len(partes) > 2 else ""
+            contatos.append((telefone, nome, nicho))
 
     return contatos
 
@@ -759,7 +761,7 @@ def montar_fila(quantidade):
     `quantidade` corta a fila.
     Levanta ValueError se o disparados.json existir e não puder ser lido (também se o
     optout.json existir e não puder ser lido — ver optout.carregar_optout()).
-    Devolve dict (fila = [(contato, normalizado, nome)]) ou None se não há nada a fazer.
+    Devolve dict (fila = [(contato, normalizado, nome, nicho)]) ou None se não há nada a fazer.
     """
     import optout  # lazy: optout.py reaproveita normalizar_numero deste módulo via importlib;
     # um import no topo deste arquivo criaria um ciclo (este módulo seria recarregado de novo
@@ -777,7 +779,7 @@ def montar_fila(quantidade):
     vistos = set()
     fila, invalidos, repetidos, bloqueados_optout = [], [], 0, 0
 
-    for contato, nome in contatos:
+    for contato, nome, nicho in contatos:
         normalizado = normalizar_numero(contato)
         if not numero_valido(normalizado):
             invalidos.append(mascarar(contato))
@@ -789,7 +791,7 @@ def montar_fila(quantidade):
             repetidos += 1
         else:
             vistos.add(normalizado)
-            fila.append((contato, normalizado, nome))
+            fila.append((contato, normalizado, nome, nicho))
 
     if invalidos:
         print(f"⚠️ {len(invalidos)} número(s) inválido(s) pulado(s) (não cabem em 55 + DDD + número): {', '.join(invalidos)}")
@@ -835,7 +837,7 @@ def executar_ensaio(quantidade):
 
     copias = random.sample(COPYS, len(COPYS))
     fila = plano["fila"]
-    for i, (contato, normalizado, nome) in enumerate(fila, 1):
+    for i, (contato, normalizado, nome, nicho) in enumerate(fila, 1):
         copia = copias[(i - 1) % len(copias)]
         espera = f" | espera depois: {random.uniform(INTERVALO_MIN_SEGUNDOS, INTERVALO_MAX_SEGUNDOS):.0f}s" if i < len(fila) else ""
         print(f"[{i}/{len(fila)}] {mascarar(normalizado)} | {copia['id']} ({copia['nome']}) | CTA: {copia['cta']}{espera}")
@@ -921,7 +923,7 @@ def executar_real(quantidade):
     copias = random.sample(COPYS, len(COPYS))
 
     try:
-        for i, (contato, normalizado, nome) in enumerate(fila, 1):
+        for i, (contato, normalizado, nome, nicho) in enumerate(fila, 1):
             motivo_limite = _motivo_limite_24h(teto_maximo)   # antes de CADA contato: o 41º nunca sai
             if motivo_limite:
                 motivo = motivo_limite

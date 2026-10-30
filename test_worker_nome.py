@@ -157,7 +157,7 @@ class TestProcessarPedidoPassaNome(Base):
     nova consulta ao LeadEngine) pros dois pontos que tocam o Supabase."""
 
     def test_nome_da_fila_chega_na_pre_escrita_e_no_registro_final(self):
-        fila = [(NUMERO, "5511999999999", "Clínica Bella Pele")]
+        fila = [(NUMERO, "5511999999999", "Clínica Bella Pele", "")]
         with mock.patch.object(w.disp, "_config_baileys", return_value=("http://x", "tok")), \
              mock.patch.object(w.disp, "_teto_maximo", return_value=30), \
              mock.patch.object(w.disp, "montar_fila", return_value={"fila": fila}), \

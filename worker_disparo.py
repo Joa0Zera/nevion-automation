@@ -253,7 +253,7 @@ def processar_pedido(pedido, url_base, chave):
     motivo = "fila concluída"
     copias = disp.random.sample(disp.COPYS, len(disp.COPYS))
 
-    for i, (contato, normalizado, nome) in enumerate(fila, 1):
+    for i, (contato, normalizado, nome, nicho) in enumerate(fila, 1):
         parar = _motivo_limite_24h(teto_maximo)   # antes de CADA contato: o 41º nunca sai
         if parar:
             motivo = parar

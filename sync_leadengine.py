@@ -153,9 +153,15 @@ def ciclo_unico():
     temporario = ARQUIVO_CONTATOS + ".tmp"
     with open(temporario, "w", encoding="utf-8") as f:
         for normalizado, lead in novos.items():
-            # nunca deixa ';' ou quebra de linha do nome corromper o formato da linha
+            # nunca deixa ';' ou quebra de linha do nome/nicho corromper o formato da linha
             nome = (lead.get("name") or "").replace(";", " ").replace("\n", " ").replace("\r", " ").strip()
-            linha = f"+{normalizado};{nome}" if nome else f"+{normalizado}"
+            nicho = (lead.get("category") or "").replace(";", " ").replace("\n", " ").replace("\r", " ").strip()
+            if nicho:
+                linha = f"+{normalizado};{nome};{nicho}"
+            elif nome:
+                linha = f"+{normalizado};{nome}"
+            else:
+                linha = f"+{normalizado}"
             f.write(linha + "\n")
     os.replace(temporario, ARQUIVO_CONTATOS)
 

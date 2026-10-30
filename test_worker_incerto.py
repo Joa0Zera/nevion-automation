@@ -15,7 +15,7 @@ for _f in (sys.stdout, sys.stderr):
         _f.reconfigure(encoding='utf-8', errors='replace')
 
 URL, CHAVE = "https://exemplo.supabase.test", "chave-de-teste"
-FILA = [(f"+55119999900{i:02d}", f"5511999990{i:03d}", f"Lead {i}") for i in range(6)]
+FILA = [(f"+55119999900{i:02d}", f"5511999990{i:03d}", f"Lead {i}", "") for i in range(6)]
 
 
 class RequestsFaloPost(types.ModuleType):

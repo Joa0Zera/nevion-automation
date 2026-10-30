@@ -21,7 +21,7 @@ disp = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(disp)
 
 URL, CHAVE = "https://exemplo.supabase.test", "chave-de-teste"
-FILA = [(f"+55119999900{i:02d}", f"5511999990{i:03d}", f"Lead {i}") for i in range(3)]
+FILA = [(f"+55119999900{i:02d}", f"5511999990{i:03d}", f"Lead {i}", "") for i in range(3)]
 AGORA_UTC = datetime(2026, 10, 30, 15, 0, 0, tzinfo=timezone.utc)
 AGORA_BRASILIA = AGORA_UTC.astimezone(disp.BRASILIA)
 
