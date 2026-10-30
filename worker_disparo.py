@@ -158,16 +158,22 @@ def marcar_executando(url_base, chave, pedido_id):
     return len(resposta.json()) == 1
 
 def marcar_concluido(url_base, chave, pedido_id, resultado):
+    """UPDATE condicional (id E status='executando' — mesmo padrão de marcar_executando):
+    se o pedido foi alterado por fora enquanto processava (ex.: cancelado manualmente pelo
+    dashboard, que vira 'erro'), 0 linhas voltam e esse status não é sobrescrito de volta
+    para 'concluido'. Devolve True se realmente concluiu, False caso contrário (quem chama
+    decide o que fazer; não é tratado como erro)."""
     import requests
 
     resposta = requests.patch(
         f"{url_base}/rest/v1/{TABELA_PEDIDOS}",
-        params={"id": f"eq.{pedido_id}"},
-        headers=_headers(chave),
+        params={"id": f"eq.{pedido_id}", "status": "eq.executando"},
+        headers=_headers(chave, {"Prefer": "return=representation"}),
         json={"status": "concluido", "concluido_em": _agora_sql(), "resultado": resultado},
         timeout=10,
     )
     resposta.raise_for_status()
+    return len(resposta.json()) == 1
 
 def marcar_erro(url_base, chave, pedido_id, mensagem):
     """`mensagem` passa por _sanitizar() (mascara sequências longas de dígitos) antes de
@@ -445,9 +451,13 @@ def ciclo_unico(url_base, chave, limite_janela_horas):
     _estado_sinal["erro_em"] = None  # um pedido rodou até o fim: o erro anterior (se havia) ficou para trás
     print(f"✅ Pedido #{pedido['id']} concluído: {resultado}")
     try:
-        marcar_concluido(url_base, chave, pedido["id"], resultado)
+        concluiu = marcar_concluido(url_base, chave, pedido["id"], resultado)
     except Exception as e:
         print(f"⚠️  Pedido #{pedido['id']} terminou mas não consegui gravar 'concluido': {type(e).__name__}: {e}")
+    else:
+        if not concluiu:
+            print(f"ℹ️  Pedido #{pedido['id']} não estava mais 'executando' (alterado por fora durante o "
+                  f"processamento, ex.: cancelado) — resultado não foi gravado por cima.")
 
 def rodar_loop(ciclo_segundos, limite_janela_horas, max_ciclos=None):
     """
