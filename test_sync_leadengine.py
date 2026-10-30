@@ -2,11 +2,18 @@
 sem Supabase: dados falsos direto nas funções. Rodar: python -m unittest test_sync_leadengine -v"""
 import json
 import os
+import sys
 import tempfile
 import unittest
 from unittest import mock
 
 import sync_leadengine as sync
+
+# mesmo ajuste do main() do sync_leadengine.py: sem isso, o aviso com ⚠️ quebra no console
+# cp1252 padrão do Windows (TestCicloUnicoNaoDerrubaComResumoFalhando imprime um desses).
+for _f in (sys.stdout, sys.stderr):
+    if hasattr(_f, 'reconfigure'):
+        _f.reconfigure(encoding='utf-8', errors='replace')
 
 POR_STATUS_FALSO = {
     "CONTATADO": 10, "NAO_RESPONDEU": 3, "NOVO": 5,
