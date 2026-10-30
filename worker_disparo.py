@@ -28,7 +28,7 @@ Configuração (ambiente ou .env ao lado deste script — mesmo padrão do Dispa
   SUPABASE_URL / SUPABASE_SERVICE_KEY   obrigatórios (sem eles o worker nem inicia)
   BAILEYS_URL / BAILEYS_TOKEN           obrigatórios pra enviar de verdade (checados só
                                          quando um pedido chega, não na inicialização)
-  DISPARO_TETO_MAX                      mesmo teto do Disparador v2.py (padrão 30)
+  DISPARO_TETO_MAX                      limite de envios em qualquer janela de 24 h (padrão 40)
   WORKER_CICLO_SEGUNDOS                 intervalo entre checagens em segundos (padrão 20)
   WORKER_JANELA_PRAZO_HORAS             prazo esperando a janela abrir, em horas (padrão 72)
 """
@@ -204,11 +204,23 @@ def _resultado(contadores, motivo, bloqueados_optout=0):
         "motivo_fim": motivo,
     }
 
+def _motivo_limite_24h(limite):
+    """None se ainda cabe um envio; senão o motivo de parar. Conta disparado/enviando/incerto nas
+    últimas 24 h (UTC). Se a contagem falhar, NÃO envia (falha fechada)."""
+    try:
+        enviados, mais_antigo = disp.envios_na_janela()
+    except disp.SupabaseIndisponivel:
+        return "não foi possível verificar o limite de 24h"
+    if enviados < limite:
+        return None
+    libera = (mais_antigo + timedelta(hours=disp.JANELA_ENVIOS_HORAS)).astimezone(disp.BRASILIA).strftime("%d/%m %H:%M")
+    return f"limite de {limite} envios em 24h atingido; libera em {libera}"
+
 def processar_pedido(pedido, url_base, chave):
     """
     Envia de verdade pra pedido['quantidade'] contatos. Devolve o dict `resultado`
     (enviados/sem_whatsapp/falhas/incertos/motivo_fim) em qualquer parada estrutural
-    (sucesso, teto atingido, INCERTO, falhas seguidas, janela fechou no meio, fila vazia).
+    (sucesso, limite de 24h atingido, INCERTO, falhas seguidas, janela fechou no meio, fila vazia).
 
     Levanta disp.ErroDeConfiguracao (Baileys mal configurado, pré-teste falhou) ou
     disp.SupabaseIndisponivel (não deu pra calcular o teto) pra quem chama tratar como
@@ -227,10 +239,9 @@ def processar_pedido(pedido, url_base, chave):
     if not plano:
         return _resultado(contadores, "nada pendente em contatos.txt (todos já processados, ou arquivo vazio)")
 
-    agora = disp.agora_brasilia()
-    teto = disp.calcular_teto(agora, teto_maximo)   # levanta SupabaseIndisponivel
-    if teto["faltam"] <= 0:
-        return _resultado(contadores, f"teto do dia atingido ({teto['enviados_hoje']}/{teto['teto']} já enviados hoje)")
+    parar = _motivo_limite_24h(teto_maximo)
+    if parar:
+        return _resultado(contadores, parar)
 
     ok, msg_preteste = disp.pre_teste_baileys()
     if not ok:
@@ -243,8 +254,9 @@ def processar_pedido(pedido, url_base, chave):
     copias = disp.random.sample(disp.COPYS, len(disp.COPYS))
 
     for i, (contato, normalizado, nome) in enumerate(fila, 1):
-        if contadores[disp.ENVIADO] >= teto["faltam"]:
-            motivo = "teto do dia atingido"
+        parar = _motivo_limite_24h(teto_maximo)   # antes de CADA contato: o 41º nunca sai
+        if parar:
+            motivo = parar
             break
         if not disp.dentro_da_janela(disp.agora_brasilia()):
             motivo = "a janela de horário fechou no meio da execução"
@@ -299,7 +311,7 @@ def processar_pedido(pedido, url_base, chave):
             motivo = f"{disp.MAX_FALHAS_SEGUIDAS} falhas seguidas (Baileys/WhatsApp com problema?)"
             break
 
-        if i < len(fila) and contadores[disp.ENVIADO] < teto["faltam"]:
+        if i < len(fila):
             disp.esperar(disp.random.uniform(disp.INTERVALO_MIN_SEGUNDOS, disp.INTERVALO_MAX_SEGUNDOS))
 
     return _resultado(contadores, motivo, bloqueados_optout)

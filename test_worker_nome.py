@@ -162,7 +162,7 @@ class TestProcessarPedidoPassaNome(Base):
              mock.patch.object(w.disp, "_teto_maximo", return_value=30), \
              mock.patch.object(w.disp, "montar_fila", return_value={"fila": fila}), \
              mock.patch.object(w.disp, "agora_brasilia", return_value="AGORA"), \
-             mock.patch.object(w.disp, "calcular_teto", return_value={"faltam": 1, "enviados_hoje": 0, "teto": 30}), \
+             mock.patch.object(w.disp, "envios_na_janela", return_value=(0, None)), \
              mock.patch.object(w.disp, "pre_teste_baileys", return_value=(True, "ok")), \
              mock.patch.object(w.disp, "dentro_da_janela", return_value=True), \
              mock.patch.object(w.disp, "enviar_via_baileys", return_value=(w.disp.ENVIADO, "HTTP 200", "")), \

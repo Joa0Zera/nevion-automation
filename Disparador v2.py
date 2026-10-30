@@ -41,7 +41,9 @@ INTERVALO_MIN_SEGUNDOS = 90               # espera uniforme entre mensagens
 INTERVALO_MAX_SEGUNDOS = 240
 ESPERA_PEDACO_SEGUNDOS = 1.0              # a espera é fatiada pra o Ctrl+C responder logo
 MAX_FALHAS_SEGUIDAS = 3
-TETO_MAX_PADRAO = 30
+TETO_MAX_PADRAO = 40                       # envios em qualquer janela de 24 h (DISPARO_TETO_MAX)
+JANELA_ENVIOS_HORAS = 24
+STATUS_NA_JANELA = ("disparado", "enviando", "incerto")   # o que conta para o limite de 24 h
 AQUECIMENTO = [(1, 5), (3, 10), (6, 15), (9, 20), (13, 25)]  # (último dia da faixa, teto)
 TETO_AQUECIMENTO_FINAL = 30                                  # do dia 14 em diante
 
@@ -238,7 +240,7 @@ def _config_baileys():
     return url, token
 
 def _teto_maximo():
-    """DISPARO_TETO_MAX (inteiro >= 1; padrão 30). Valor inválido não vira 'sem limite': levanta."""
+    """DISPARO_TETO_MAX (inteiro >= 1; padrão 40). Valor inválido não vira 'sem limite': levanta."""
     bruto = _ler_config(("DISPARO_TETO_MAX",))["DISPARO_TETO_MAX"]
     if not bruto:
         return TETO_MAX_PADRAO
@@ -520,6 +522,30 @@ def _ler_timestamp(texto):
     t = re.sub(r"\.(\d+)", lambda m: "." + m.group(1)[:6].ljust(6, "0"), t, count=1)
     momento = datetime.fromisoformat(t)
     return momento if momento.tzinfo else momento.replace(tzinfo=timezone.utc)
+
+def envios_na_janela(agora=None):
+    """
+    Teto deslizante: quantos registros de public.disparos com status disparado/enviando/incerto
+    têm disparado_em nas últimas 24 horas (UTC). Devolve (quantidade, momento do mais antigo da
+    janela em UTC, ou None se não há nenhum). Levanta SupabaseIndisponivel se não der pra contar
+    (falha fechada: quem chama não envia).
+    """
+    agora = agora or agora_utc()
+    desde = (agora - timedelta(hours=JANELA_ENVIOS_HORAS)).astimezone(timezone.utc)
+    linhas = _consultar_supabase({
+        "select": "disparado_em",
+        "status": f"in.({','.join(STATUS_NA_JANELA)})",
+        "disparado_em": f"gte.{desde.strftime('%Y-%m-%dT%H:%M:%SZ')}",
+        "order": "disparado_em.asc",
+        "limit": "1000",
+    })
+    if not linhas:
+        return 0, None
+    try:
+        mais_antigo = _ler_timestamp(linhas[0]["disparado_em"]).astimezone(timezone.utc)
+    except (KeyError, TypeError, ValueError) as e:
+        raise SupabaseIndisponivel("data do envio mais antigo ilegível") from e
+    return len(linhas), mais_antigo
 
 def calcular_teto(agora, teto_maximo):
     """
