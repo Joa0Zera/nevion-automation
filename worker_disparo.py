@@ -276,6 +276,14 @@ def processar_pedido(pedido, url_base, chave):
             motivo = f"não consegui gravar {disp.ARQUIVO_DISPARADOS}"
             break
 
+        # WhatsApp desconectado: a gravação deste contato (acima) já ficou 'falhou' — isso não
+        # muda. Mas não avança pros próximos (cada um bateria no mesmo erro e também ficaria
+        # 'falhou' sem nunca ter sido de fato tentado) nem conta no limite de falhas seguidas
+        # (não é Baileys/WhatsApp com problema no sentido de envio recusado — é desconexão).
+        if status == disp.FALHOU and erro == "whatsapp_desconectado":
+            motivo = "WhatsApp desconectado — pausado; pode ser retomado depois"
+            break
+
         if status == disp.FALHOU and erro in disp.ERROS_OPTOUT:
             bloqueados_optout += 1
 
