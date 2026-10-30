@@ -90,10 +90,15 @@ def _valor_campo(campo):
     return None  # map/array/geo etc. — não usados aqui
 
 
+CATEGORIA_PADRAO = "Não especificado"
+
+
 def buscar_leads_novo():
     """
     Leads com status == 'NOVO'. Traz só os campos usados (phone, normalizedPhone,
-    collectedAt, name) — o resto do documento (endereço, notas, e-mail...) não trafega.
+    collectedAt, name, category) — o resto do documento (endereço, notas, e-mail...) não
+    trafega. `category` vira CATEGORIA_PADRAO quando o documento não tem esse campo (ou vem
+    vazio) — nunca None, pra quem usa (sync_leadengine.py) não precisar tratar esse caso.
     Levanta em caso de falta de credencial ou falha de rede/HTTP; quem chama decide o que fazer.
     """
     import requests
@@ -103,7 +108,7 @@ def buscar_leads_novo():
             "from": [{"collectionId": "leads"}],
             "select": {"fields": [
                 {"fieldPath": "phone"}, {"fieldPath": "normalizedPhone"},
-                {"fieldPath": "collectedAt"}, {"fieldPath": "name"},
+                {"fieldPath": "collectedAt"}, {"fieldPath": "name"}, {"fieldPath": "category"},
             ]},
             "where": {"fieldFilter": {"field": {"fieldPath": "status"}, "op": "EQUAL", "value": {"stringValue": "NOVO"}}},
             "limit": 2000,
@@ -124,6 +129,7 @@ def buscar_leads_novo():
             "normalizedPhone": _valor_campo(campos.get("normalizedPhone")) or "",
             "collectedAt": _valor_campo(campos.get("collectedAt")),  # string ISO 8601 (timestampValue) ou None
             "name": _valor_campo(campos.get("name")) or "",
+            "category": _valor_campo(campos.get("category")) or CATEGORIA_PADRAO,
         })
     return leads
 
