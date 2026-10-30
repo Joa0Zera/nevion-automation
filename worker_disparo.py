@@ -266,9 +266,6 @@ def processar_pedido(pedido, url_base, chave):
             le.marcar_contatado_no_leadengine(contato)
             disp.registrar_conversa(normalizado, "enviada", mensagem)
 
-        if status == disp.INCERTO:
-            motivo = "envio INCERTO — parado; confira manualmente no WhatsApp"
-            break
         if not gravou_json:
             motivo = f"não consegui gravar {disp.ARQUIVO_DISPARADOS}"
             break
@@ -278,7 +275,10 @@ def processar_pedido(pedido, url_base, chave):
 
         # SEM_WHATSAPP não conta como falha (servidor respondeu normalmente), e bloqueio de
         # opt-out também não — é o sistema funcionando certo, não Baileys/WhatsApp com problema.
-        conta_como_falha = status == disp.FALHOU and erro not in disp.ERROS_OPTOUT
+        # INCERTO (502/504/timeout — "pode ter saído") conta junto com FALHOU no mesmo limite:
+        # um episódio isolado não para o lote (o próximo contato é outro número, sem risco de
+        # duplicar envio), mas uma sequência (misturando FALHOU e INCERTO) ainda pausa.
+        conta_como_falha = status in (disp.FALHOU, disp.INCERTO) and erro not in disp.ERROS_OPTOUT
         falhas_seguidas = falhas_seguidas + 1 if conta_como_falha else 0
         if falhas_seguidas >= disp.MAX_FALHAS_SEGUIDAS:
             motivo = f"{disp.MAX_FALHAS_SEGUIDAS} falhas seguidas (Baileys/WhatsApp com problema?)"
