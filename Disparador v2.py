@@ -71,60 +71,28 @@ COPYS = [
     {
         "id": "copy_01",
         "nome": "Gap Direto",
-        "mensagem": """Olá, tudo bem?
-
-Notei que a {nome} tem uma ótima presença no Google, mas ainda não tem um site próprio — isso costuma custar pacientes que pesquisam antes de agendar.
-
-Trabalho criando sites pra clínicas de estética, com entrega pronta em 1 a 2 dias.
-
-Um exemplo que já fiz: https://www.drmykaelsilva.com.br/
-
-Posso te mostrar como ficaria uma página assim pra vocês?""",
+        "mensagem": "Oi {nome}, tudo bem? Vi a clínica no Google. Quem cuida do site e do agendamento de vocês hoje?",
         "cta": "",
         "tipo": "aberta"
     },
     {
         "id": "copy_02",
         "nome": "Casual",
-        "mensagem": """Oi!
-
-Passei pelo perfil da {nome} agora e vi que vocês têm uma presença bem forte no Google, mas ainda não tem um site próprio — isso costuma custar pacientes que pesquisam antes de agendar.
-
-Trabalho criando sites pra clínicas de estética, com entrega pronta em 1 a 2 dias.
-
-Um exemplo que já fiz: https://www.drmykaelsilva.com.br/
-
-Faz sentido eu te mandar uma prévia de como ficaria pra vocês?""",
+        "mensagem": "{nome}, faço sites para clínicas de estética com entrega no mesmo dia, depois da confirmação. Quem decide sobre isso é você?",
         "cta": "",
         "tipo": "aberta"
     },
     {
         "id": "copy_03",
         "nome": "Apresentação",
-        "mensagem": """Olá!
-
-Sou desenvolvedor de sites e notei que a {nome} tem uma ótima presença no Google, mas ainda não tem um site próprio — isso costuma custar pacientes que pesquisam antes de agendar.
-
-Trabalho criando sites pra clínicas de estética, com entrega pronta em 1 a 2 dias.
-
-Um exemplo que já fiz: https://www.drmykaelsilva.com.br/
-
-Quer que eu te mostre como ficaria uma página assim pra vocês?""",
+        "mensagem": "Oi {nome}! Muitos pacientes pesquisam no Google antes de agendar. Vocês têm site ou só o Instagram?",
         "cta": "",
         "tipo": "aberta"
     },
     {
         "id": "copy_04",
         "nome": "Descoberta Google",
-        "mensagem": """Opa!
-
-Encontrei a {nome} pesquisando no Google e reparei que vocês têm uma ótima presença por lá, mas ainda não têm site próprio — isso costuma custar pacientes que pesquisam antes de agendar.
-
-Trabalho criando sites pra clínicas de estética, com entrega pronta em 1 a 2 dias.
-
-Um exemplo que já fiz: https://www.drmykaelsilva.com.br/
-
-Bora eu te mandar um modelo de como ficaria pra vocês?""",
+        "mensagem": "{nome}, antes de qualquer proposta: você tem interesse em um site com agendamento online? Para quando seria?",
         "cta": "",
         "tipo": "aberta"
     }
