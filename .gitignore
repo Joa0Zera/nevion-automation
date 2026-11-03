@@ -233,3 +233,7 @@ projetos/
 raspar_instagram_login.py
 
 optout.json
+
+# importa_maps.py: CSV de cada execução (relatório local; *.csv acima já cobre os arquivos,
+# isso cobre a pasta mesmo se ficar vazia)
+importacoes/
