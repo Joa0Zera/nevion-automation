@@ -128,7 +128,15 @@ def ciclo_unico():
         return
 
     vistos, duplicados, invalidos, bloqueados_optout = _selecionar_sem_duplicatas(leads_novo)
-    novos = {normalizado: lead for normalizado, lead in vistos.items() if normalizado not in ja_em_disparos}
+    novos_sem_filtro_nicho = {normalizado: lead for normalizado, lead in vistos.items() if normalizado not in ja_em_disparos}
+    # Lista de permissão: só quem normaliza (via disp.chave_do_nicho) pra uma chave em
+    # disp.NICHOS_ATIVOS entra no contatos.txt (ver docstring de NICHOS_ATIVOS em
+    # "Disparador v2.py" — decisão de pausar o envio pra clínica/nicho desconhecido).
+    novos = {
+        normalizado: lead for normalizado, lead in novos_sem_filtro_nicho.items()
+        if disp.chave_do_nicho(lead.get("category")) in disp.NICHOS_ATIVOS
+    }
+    bloqueados_nicho_inativo = len(novos_sem_filtro_nicho) - len(novos)
 
     temporario = ARQUIVO_CONTATOS + ".tmp"
     with open(temporario, "w", encoding="utf-8") as f:
@@ -147,7 +155,8 @@ def ciclo_unico():
 
     print(f"[{disp.agora_brasilia().strftime('%d/%m %H:%M')}] LeadEngine: {len(leads_novo)} 'NOVO' | "
           f"{duplicados} duplicado(s) | {len(invalidos)} inválido(s) | {bloqueados_optout} em optout | "
-          f"{len(ja_em_disparos)} já em disparos -> {len(novos)} contato(s) gravados em contatos.txt")
+          f"{len(ja_em_disparos)} já em disparos | {bloqueados_nicho_inativo} fora de NICHOS_ATIVOS "
+          f"-> {len(novos)} contato(s) gravados em contatos.txt")
     if invalidos:
         print(f"   inválidos (mascarados): {', '.join(invalidos)}")
 

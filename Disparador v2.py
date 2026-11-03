@@ -217,6 +217,13 @@ def chave_do_nicho(nicho):
             return chave
     return None
 
+# Lista de permissão de nichos: só quem normaliza (via chave_do_nicho) pra uma destas chaves
+# entra na fila e no contatos.txt — decisão de pausar o envio pra clínica (nicho vazio,
+# "Outros", desconhecido ou não-reconhecido ficam de fora, sem fallback de clínica). Pra
+# reativar clínica (ou qualquer outro nicho) no futuro, é só adicionar aqui — não existe flag
+# de ambiente pra isso de propósito.
+NICHOS_ATIVOS = {"personal_trainer", "barbearia", "manicure_lash"}
+
 def novo_seletor_de_copias():
     """Devolve escolher(nicho) -> cópia. A rotação é por conjunto: cada conjunto (clínica, personal_trainer,
     barbearia, manicure_lash) é embaralhado uma vez, na primeira vez em que é usado, e percorrido em ordem
@@ -945,6 +952,11 @@ def montar_fila(quantidade):
     SupabaseIndisponivel se não conseguir confirmar quem já tem QUALQUER linha em
     public.disparos (ver _contatos_ja_em_disparos_ou_falha()) — essa checagem nunca é pulada,
     nem no ensaio: sem ela o Disparador não monta fila nenhuma.
+
+    Só entra na fila quem tem nicho (normalizado por chave_do_nicho) dentro de
+    NICHOS_ATIVOS. Nicho vazio, nulo ou desconhecido (inclusive clínica, hoje pausada) fica
+    de fora — SEM cair no fallback de clínica do seletor de cópias; o contato simplesmente
+    não entra. Reativar clínica (ou qualquer outro nicho) é só adicionar em NICHOS_ATIVOS.
     Devolve dict (fila = [(contato, normalizado, nome, nicho)]) ou None se não há nada a fazer.
     """
     import optout  # lazy: optout.py reaproveita normalizar_numero deste módulo via importlib;
@@ -964,7 +976,7 @@ def montar_fila(quantidade):
     ja_disparados = ja_disparados_json | ja_em_disparos_tabela
     so_pela_tabela = ja_em_disparos_tabela - ja_disparados_json
     vistos = set()
-    fila, invalidos, repetidos, bloqueados_optout = [], [], 0, 0
+    fila, invalidos, repetidos, bloqueados_optout, bloqueados_nicho_inativo = [], [], 0, 0, 0
 
     for contato, nome, nicho in contatos:
         normalizado = normalizar_numero(contato)
@@ -974,6 +986,8 @@ def montar_fila(quantidade):
             bloqueados_optout += 1
         elif normalizado in ja_disparados:
             pass
+        elif chave_do_nicho(nicho) not in NICHOS_ATIVOS:
+            bloqueados_nicho_inativo += 1
         elif normalizado in vistos:
             repetidos += 1
         else:
@@ -984,6 +998,8 @@ def montar_fila(quantidade):
         print(f"⚠️ {len(invalidos)} número(s) inválido(s) pulado(s) (não cabem em 55 + DDD + número): {', '.join(invalidos)}")
     if bloqueados_optout:
         print(f"🚫 {bloqueados_optout} contato(s) pulado(s) por estar em optout")
+    if bloqueados_nicho_inativo:
+        print(f"⏸️  {bloqueados_nicho_inativo} contato(s) pulado(s) por nicho fora de NICHOS_ATIVOS ({', '.join(sorted(NICHOS_ATIVOS))})")
     if so_pela_tabela:
         print(f"🔒 {len(so_pela_tabela)} contato(s) pulado(s) por já ter registro em disparos (motivo: já tem registro em disparos)")
 

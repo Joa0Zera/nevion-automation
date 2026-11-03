@@ -172,19 +172,22 @@ class TestSyncGravaNichoComoTerceiroCampo(unittest.TestCase):
         }])
         self.assertEqual(linhas, ["+5511999990000;Academia Tal;personal_trainer"])
 
-    def test_sem_category_grava_so_telefone_e_nome(self):
+    def test_sem_category_nao_entra_mais_no_contatos_txt(self):
+        """Antes da lista de permissão de nichos (NICHOS_ATIVOS), um lead sem category
+        gravava 'telefone;nome'. Com clínica/nicho desconhecido pausados, nicho vazio não
+        normaliza pra nenhuma chave ativa — o lead simplesmente não entra."""
         linhas = self._ciclo([{
             "normalizedPhone": "5511999990000", "phone": "",
             "name": "Academia Tal", "category": "", "collectedAt": None,
         }])
-        self.assertEqual(linhas, ["+5511999990000;Academia Tal"])
+        self.assertEqual(linhas, [])
 
-    def test_sem_nome_nem_category_grava_so_telefone(self):
+    def test_sem_nome_nem_category_tambem_nao_entra(self):
         linhas = self._ciclo([{
             "normalizedPhone": "5511999990000", "phone": "",
             "name": "", "category": "", "collectedAt": None,
         }])
-        self.assertEqual(linhas, ["+5511999990000"])
+        self.assertEqual(linhas, [])
 
 
 if __name__ == "__main__":
