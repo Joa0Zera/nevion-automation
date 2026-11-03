@@ -1,7 +1,8 @@
 """
 NEVION - Disparador v2 (envio real via Baileys).
 
-  python "Disparador v2.py" [N]                 ENSAIO (padrão): mostra o que faria, sem rede e sem gravar nada
+  python "Disparador v2.py" [N]                 ENSAIO (padrão): mostra o que faria, sem Baileys e sem gravar nada
+                                                 (consulta o Supabase só pra saber quem já está em disparos)
   python "Disparador v2.py" --real [N]          envio de verdade (mostra o plano e exige digitar ENVIAR)
   python "Disparador v2.py" --teste <numero>    envia UMA mensagem de teste (não grava nada, ignora teto/horário)
 
@@ -23,6 +24,8 @@ import unicodedata
 import argparse
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
+
+import disparos_compartilhado
 
 # Configuração
 ARQUIVO_CONTATOS = "contatos.txt"
@@ -398,6 +401,27 @@ def _config_supabase():
         return None
 
     return url.rstrip("/"), chave
+
+def _contatos_ja_em_disparos_ou_falha():
+    """Todo contato_normalizado já em public.disparos, qualquer status — inclusive 'falhou':
+    quem falhou de certeza também não é tentado de novo por este caminho (ver
+    salvar_disparado(), que só por isso deixa 'falhou' fora do disparados.json local).
+
+    Levanta SupabaseIndisponivel se não conseguir confirmar (sem config, falha de rede, de
+    autenticação ou resposta inesperada): sem essa confirmação o Disparador não envia nada —
+    falhar fechado, nunca aberto."""
+    config = _config_supabase()
+    if not config:
+        raise SupabaseIndisponivel(
+            "SUPABASE_URL / SUPABASE_SERVICE_KEY não configurados — não dá pra confirmar quem já está em disparos"
+        )
+    url_base, chave = config
+    try:
+        return disparos_compartilhado.buscar_contatos_ja_em_disparos(url_base, chave)
+    except SupabaseIndisponivel:
+        raise
+    except Exception as e:
+        raise SupabaseIndisponivel(f"não consegui consultar disparos: {type(e).__name__}") from e
 
 # ==================== ARQUIVOS LOCAIS ====================
 
@@ -917,7 +941,10 @@ def montar_fila(quantidade):
     repetidos no contatos.txt e quem pediu opt-out ficam de fora, e só depois disso
     `quantidade` corta a fila.
     Levanta ValueError se o disparados.json existir e não puder ser lido (também se o
-    optout.json existir e não puder ser lido — ver optout.carregar_optout()).
+    optout.json existir e não puder ser lido — ver optout.carregar_optout()). Levanta
+    SupabaseIndisponivel se não conseguir confirmar quem já tem QUALQUER linha em
+    public.disparos (ver _contatos_ja_em_disparos_ou_falha()) — essa checagem nunca é pulada,
+    nem no ensaio: sem ela o Disparador não monta fila nenhuma.
     Devolve dict (fila = [(contato, normalizado, nome, nicho)]) ou None se não há nada a fazer.
     """
     import optout  # lazy: optout.py reaproveita normalizar_numero deste módulo via importlib;
@@ -927,12 +954,15 @@ def montar_fila(quantidade):
     contatos = carregar_contatos()
     disparados = carregar_disparados()
     optouts = optout.carregar_optout()
+    ja_em_disparos_tabela = _contatos_ja_em_disparos_ou_falha()
 
     if not contatos:
         print("❌ Nenhum contato encontrado!")
         return None
 
-    ja_disparados = {normalizar_numero(chave) for chave in disparados}
+    ja_disparados_json = {normalizar_numero(chave) for chave in disparados}
+    ja_disparados = ja_disparados_json | ja_em_disparos_tabela
+    so_pela_tabela = ja_em_disparos_tabela - ja_disparados_json
     vistos = set()
     fila, invalidos, repetidos, bloqueados_optout = [], [], 0, 0
 
@@ -954,6 +984,8 @@ def montar_fila(quantidade):
         print(f"⚠️ {len(invalidos)} número(s) inválido(s) pulado(s) (não cabem em 55 + DDD + número): {', '.join(invalidos)}")
     if bloqueados_optout:
         print(f"🚫 {bloqueados_optout} contato(s) pulado(s) por estar em optout")
+    if so_pela_tabela:
+        print(f"🔒 {len(so_pela_tabela)} contato(s) pulado(s) por já ter registro em disparos (motivo: já tem registro em disparos)")
 
     if not fila:
         print("✓ Todos os contatos já receberam mensagem!")
@@ -976,8 +1008,10 @@ def _banner(titulo):
     print("="*70 + "\n")
 
 def executar_ensaio(quantidade):
-    """Mostra o que o modo real faria. Sem rede, sem Baileys, sem gravar nada."""
-    _banner("🧪 NEVION - DISPARADOR — ENSAIO (nada é enviado, gravado nem consultado)")
+    """Mostra o que o modo real faria. Sem Baileys, sem gravar nada; consulta o Supabase só
+    pra saber quem já está em disparos (mesma checagem do modo real — ver montar_fila()),
+    pra a contagem da fila ser fiel."""
+    _banner("🧪 NEVION - DISPARADOR — ENSAIO (nada é enviado nem gravado)")
 
     try:
         teto_maximo = _teto_maximo()
@@ -985,6 +1019,9 @@ def executar_ensaio(quantidade):
     except (ErroDeConfiguracao, ValueError) as e:
         print(f"❌ {e}")
         return 2
+    except SupabaseIndisponivel as e:
+        print(f"❌ Não consegui confirmar quem já está em disparos ({e}). Sem essa checagem eu não monto a fila.")
+        return 1
     if not plano:
         return 0
 
@@ -1037,6 +1074,9 @@ def executar_real(quantidade):
     except ValueError as e:
         print(f"❌ {e}")
         return 2
+    except SupabaseIndisponivel as e:
+        print(f"❌ Não consegui confirmar quem já está em disparos ({e}). Sem essa checagem eu não envio nada.")
+        return 1
     if not plano:
         return 0
 
@@ -1093,6 +1133,17 @@ def executar_real(quantidade):
             if not dentro_da_janela(agora_brasilia()):
                 motivo, completo = "a janela de horário fechou", False
                 break
+
+            # Refeita antes de CADA envio (não só na montagem da fila): outro processo pode
+            # ter registrado este contato em disparos entre a montagem da fila e agora.
+            try:
+                ja_em_disparos_agora = _contatos_ja_em_disparos_ou_falha()
+            except SupabaseIndisponivel as e:
+                motivo, completo = f"não consegui confirmar quem já está em disparos ({e})", False
+                break
+            if normalizado in ja_em_disparos_agora:
+                print(f"⏭️  Pulando {mascarar(normalizado)}: já tem registro em disparos (registrado durante esta execução)\n")
+                continue
 
             copia = escolher_copia(nicho)
             mensagem = copia["mensagem"].replace("{nome}", limpar_nome(nome) or "empresa")

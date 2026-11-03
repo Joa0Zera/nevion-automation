@@ -63,6 +63,7 @@ class TestCarregarContatosAceitaDoisETresCampos(unittest.TestCase):
     def test_montar_fila_repassa_nicho_na_tupla(self):
         self._escrever(["+5511999990000;Academia Tal;personal_trainer"])
         with mock.patch.object(disp, "carregar_disparados", return_value={}), \
+             mock.patch.object(disp, "_contatos_ja_em_disparos_ou_falha", return_value=set()), \
              mock.patch("optout.carregar_optout", return_value=set()):
             plano = disp.montar_fila(None)
         self.assertEqual(plano["fila"], [("+5511999990000", "5511999990000", "Academia Tal", "personal_trainer")])
@@ -84,8 +85,9 @@ class TestMontarFilaIntercalaNichos(unittest.TestCase):
         with open(self.arquivo, "w", encoding="utf-8") as f:
             f.write("\n".join(linhas) + "\n")
 
-    def _montar(self, quantidade=None, disparados=None, optouts=None):
+    def _montar(self, quantidade=None, disparados=None, optouts=None, ja_em_disparos_tabela=None):
         with mock.patch.object(disp, "carregar_disparados", return_value=disparados or {}), \
+             mock.patch.object(disp, "_contatos_ja_em_disparos_ou_falha", return_value=ja_em_disparos_tabela or set()), \
              mock.patch("optout.carregar_optout", return_value=optouts or set()):
             return disp.montar_fila(quantidade)
 

@@ -62,6 +62,7 @@ class TestExecutarRealSegueOTetoDeslizante(unittest.TestCase):
              mock.patch.object(disp, "_config_baileys", return_value=("http://x", "tok")), \
              mock.patch.object(disp, "_teto_maximo", return_value=40), \
              mock.patch.object(disp, "montar_fila", return_value={"fila": FILA}), \
+             mock.patch.object(disp, "_contatos_ja_em_disparos_ou_falha", return_value=set()), \
              mock.patch.object(disp, "agora_brasilia", return_value=AGORA_BRASILIA), \
              mock.patch.object(disp, "agora_utc", return_value=AGORA_UTC), \
              mock.patch.object(disp, "dentro_da_janela", return_value=True), \
@@ -105,6 +106,7 @@ class TestExecutarRealSegueOTetoDeslizante(unittest.TestCase):
              mock.patch.object(disp, "_config_baileys", return_value=("http://x", "tok")), \
              mock.patch.object(disp, "_teto_maximo", return_value=40), \
              mock.patch.object(disp, "montar_fila", return_value={"fila": FILA}), \
+             mock.patch.object(disp, "_contatos_ja_em_disparos_ou_falha", return_value=set()), \
              mock.patch.object(disp, "agora_brasilia", return_value=AGORA_BRASILIA), \
              mock.patch.object(disp, "envios_na_janela", return_value=(0, None)), \
              mock.patch.object(disp, "dentro_da_janela", return_value=True), \

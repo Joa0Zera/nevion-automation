@@ -22,6 +22,7 @@ import os
 import sys
 
 import leadengine_client as le
+from disparos_compartilhado import buscar_contatos_ja_em_disparos
 from optout import carregar_optout
 
 PASTA = os.path.dirname(os.path.abspath(__file__))
@@ -39,27 +40,6 @@ CICLO_PADRAO_MINUTOS = 60
 # qualquer isolamento por cwd em teste e escreveria sempre na pasta real do script.
 ARQUIVO_CONTATOS = "contatos.txt"
 ARQUIVO_RESUMO = "leadengine_resumo.json"
-
-
-def buscar_contatos_ja_em_disparos(url_base, chave):
-    """Todo contato_normalizado já presente em public.disparos, qualquer status. Pagina de
-    1000 em 1000 (o padrão do PostgREST) pra não depender de um limite implícito."""
-    import requests
-
-    existentes, offset, pagina_tam = set(), 0, 1000
-    while True:
-        resposta = requests.get(
-            f"{url_base}/rest/v1/disparos",
-            params={"select": "contato_normalizado", "offset": str(offset), "limit": str(pagina_tam)},
-            headers={"apikey": chave, "Authorization": f"Bearer {chave}"},
-            timeout=15,
-        )
-        resposta.raise_for_status()
-        pagina = resposta.json()
-        existentes.update(r["contato_normalizado"] for r in pagina if r.get("contato_normalizado"))
-        if len(pagina) < pagina_tam:
-            return existentes
-        offset += pagina_tam
 
 
 def _chave_desempate(lead):
