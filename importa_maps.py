@@ -86,9 +86,9 @@ def _config_apify(actor_arg=None):
 
 
 def buscar_resultados_apify(termo, cidade, max_resultados, token, actor):
-    """Uma busca no Apify (run síncrono, devolve os itens do dataset direto). Levanta em
-    qualquer falha de rede/HTTP/formato — quem chama decide (aqui: aborta a importação, sem
-    gravar nada)."""
+    """Uma busca no Apify (run síncrono, devolve os itens do dataset direto). Levanta
+    ErroDeImportacao em qualquer falha de rede/HTTP/formato, com mensagem sem o token nem a
+    URL completa — o token nunca pode chegar ao terminal, log ou CSV (ver _config_apify)."""
     import requests
 
     corpo = {
@@ -96,13 +96,22 @@ def buscar_resultados_apify(termo, cidade, max_resultados, token, actor):
         "maxCrawledPlacesPerSearch": max_resultados,
         "language": "pt-BR",
     }
-    resposta = requests.post(
-        APIFY_RUN_SYNC_URL.format(actor=actor),
-        params={"token": token},
-        json=corpo,
-        timeout=120,
-    )
-    resposta.raise_for_status()
+    # APIFY_ACTOR aceita tanto "compass/crawler-google-places" quanto
+    # "compass~crawler-google-places" (formato de URL do Apify) — ambos geram a mesma URL.
+    url = APIFY_RUN_SYNC_URL.format(actor=actor.replace("/", "~"))
+    try:
+        resposta = requests.post(url, params={"token": token}, json=corpo, timeout=120)
+        resposta.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        status = e.response.status_code if e.response is not None else "desconhecido"
+        raise ErroDeImportacao(
+            f"Apify recusou a requisição (HTTP {status}). Verifique APIFY_ACTOR e APIFY_TOKEN."
+        ) from None
+    except requests.exceptions.RequestException:
+        raise ErroDeImportacao(
+            "Falha de conexão com o Apify. Verifique APIFY_ACTOR, APIFY_TOKEN e a rede."
+        ) from None
+
     itens = resposta.json()
     if not isinstance(itens, list):
         raise ErroDeImportacao("resposta inesperada do Apify (não é uma lista)")

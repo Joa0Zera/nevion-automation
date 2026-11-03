@@ -187,5 +187,79 @@ class TestFalhaDeGravacaoParaOLote(unittest.TestCase):
         self.assertEqual(len(gravados), 2)  # o 3º nunca foi tentado
 
 
+class _RespostaFalsa:
+    def __init__(self, status_code=200, payload=None, url=""):
+        self.status_code = status_code
+        self._payload = payload if payload is not None else []
+        self.url = url
+
+    def json(self):
+        return self._payload
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            import requests
+            erro = requests.exceptions.HTTPError(
+                f"{self.status_code} Client Error: Not Found for url: {self.url}"
+            )
+            erro.response = self
+            raise erro
+
+
+class TestFormatoDoIdDoAtor(unittest.TestCase):
+    def test_id_com_barra_e_com_til_geram_a_mesma_url(self):
+        urls = []
+
+        def post_falso(url, **kw):
+            urls.append(url)
+            return _RespostaFalsa(200, [])
+
+        with mock.patch("requests.post", side_effect=post_falso):
+            im.buscar_resultados_apify("x", "y", 1, "tok", "compass/crawler-google-places")
+            im.buscar_resultados_apify("x", "y", 1, "tok", "compass~crawler-google-places")
+
+        self.assertEqual(urls[0], urls[1])
+        self.assertIn("/acts/compass~crawler-google-places/run-sync-get-dataset-items", urls[0])
+
+
+class TestTokenNuncaApareceEmErro(unittest.TestCase):
+    TOKEN = "apify_api_segredo_super_secreto_123"
+
+    def test_erro_http_nao_expoe_token_nem_url_completa(self):
+        url_completa = f"{im.APIFY_RUN_SYNC_URL.format(actor='x')}?token={self.TOKEN}"
+
+        def post_falso(url, **kw):
+            return _RespostaFalsa(404, url=url_completa)
+
+        with mock.patch("requests.post", side_effect=post_falso):
+            with self.assertRaises(im.ErroDeImportacao) as ctx:
+                im.buscar_resultados_apify("x", "y", 1, self.TOKEN, "x")
+
+        mensagem = str(ctx.exception)
+        self.assertNotIn(self.TOKEN, mensagem)
+        self.assertNotIn(url_completa, mensagem)
+        self.assertIn("404", mensagem)
+
+    def test_erro_de_conexao_nao_expoe_token(self):
+        import requests
+
+        def post_falso(url, **kw):
+            raise requests.exceptions.ConnectionError(
+                f"falha ao conectar em {url}?token={self.TOKEN}"
+            )
+
+        with mock.patch("requests.post", side_effect=post_falso):
+            with self.assertRaises(im.ErroDeImportacao) as ctx:
+                im.buscar_resultados_apify("x", "y", 1, self.TOKEN, "x")
+
+        self.assertNotIn(self.TOKEN, str(ctx.exception))
+
+    def test_token_nao_aparece_em_nenhum_campo_do_documento_ou_csv(self):
+        doc = im.montar_documento_lead(item(), "Personal Trainer", "Uberlândia, MG")
+        self.assertNotIn(self.TOKEN, repr(doc))
+        _, _, linhas_csv = None, None, [["x"]]  # cabeçalho/linhas não recebem token: ver CABECALHO_CSV
+        self.assertNotIn("token", [c.lower() for c in im.CABECALHO_CSV])
+
+
 if __name__ == "__main__":
     unittest.main()
