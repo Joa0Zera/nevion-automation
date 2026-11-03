@@ -886,6 +886,30 @@ def esperar(segundos):
             return
         time.sleep(min(ESPERA_PEDACO_SEGUNDOS, restante))
 
+def _intercalar_por_nicho(fila):
+    """Agrupa a fila por nicho (mantendo a ordem interna de cada grupo) e intercala um
+    contato de cada nicho por vez, em rodízio, na ordem em que os nichos apareceram.
+    Com um nicho só, a ordem fica igual à de entrada."""
+    grupos, ordem_nichos = {}, []
+    for item in fila:
+        nicho_item = item[3]
+        if nicho_item not in grupos:
+            grupos[nicho_item] = []
+            ordem_nichos.append(nicho_item)
+        grupos[nicho_item].append(item)
+
+    if len(ordem_nichos) <= 1:
+        return fila
+
+    intercalada, indices = [], {nicho_item: 0 for nicho_item in ordem_nichos}
+    while len(intercalada) < len(fila):
+        for nicho_item in ordem_nichos:
+            i = indices[nicho_item]
+            if i < len(grupos[nicho_item]):
+                intercalada.append(grupos[nicho_item][i])
+                indices[nicho_item] = i + 1
+    return intercalada
+
 def montar_fila(quantidade):
     """
     Contatos que ainda faltam, na ordem do contatos.txt. A comparação é pelo número
@@ -934,6 +958,8 @@ def montar_fila(quantidade):
     if not fila:
         print("✓ Todos os contatos já receberam mensagem!")
         return None
+
+    fila = _intercalar_por_nicho(fila)
 
     total_pendentes = len(fila)
     if quantidade:
